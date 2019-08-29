@@ -205,6 +205,9 @@ def search_rights(cur, **kwargs):
 def make_response(data, log_header, log_level='info'):
     """Create JSON response object"""
     response = jsonify({'code': data['code'], 'msg': data['msg']})
+    if 'response' in data:
+        response = jsonify(
+            {'code': data['code'], 'msg': data['msg'], 'response': data['response']})
     response.status_code = data['http_status']
     if log_level == 'debug':
         LOGGER.debug('%sResponse: %s', log_header, data)
@@ -561,7 +564,10 @@ def process_search_rights(conf, json_data, log_header):
         '%sFound %s rights, returning %s rights with offset %s',
         log_header, result['total'], len(result['rights']), result['offset'])
 
-    return {'http_status': 200, 'code': 'OK', 'msg': result}
+    return {
+        'http_status': 200, 'code': 'OK',
+        'msg': 'Found {} rights'.format(result['total']),
+        'response': result}
 
 
 def validate_set_person_request(json_data, log_header):
