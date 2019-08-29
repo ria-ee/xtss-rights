@@ -11,6 +11,7 @@ This module allows:
 """
 
 # TODO: validate inputs!
+# TODO: no get_time
 
 import json
 import logging
@@ -29,6 +30,7 @@ def get_db_connection(conf):
 
 
 def get_person(cur, code):
+    """Get person data from db"""
     cur.execute("""
         select id, first_name, last_name
         from rights.person
@@ -40,6 +42,7 @@ def get_person(cur, code):
 
 
 def set_person(cur, code, first_name, last_name):
+    """Get person data from db and update or insert if necessary"""
     current_id, current_first_name, current_last_name = get_person(cur, code)
     if current_id is None:
         cur.execute(
@@ -49,7 +52,7 @@ def set_person(cur, code, first_name, last_name):
                 returning id""",
             {'code': code, 'first_name': first_name, 'last_name': last_name})
         return cur.fetchone()[0]
-    elif current_first_name != first_name or current_last_name != last_name:
+    if current_first_name != first_name or current_last_name != last_name:
         cur.execute(
             """
                 update rights.person
@@ -57,12 +60,11 @@ def set_person(cur, code, first_name, last_name):
                     last_modified=current_timestamp
                 where id=%(id)s""",
             {'first_name': first_name, 'last_name': last_name, 'id': current_id})
-        return current_id
-    else:
-        return current_id
+    return current_id
 
 
 def get_organization(cur, code):
+    """Get organization data from db"""
     cur.execute("""
         select id, name
         from rights.organization
@@ -74,6 +76,7 @@ def get_organization(cur, code):
 
 
 def set_organization(cur, code, name):
+    """Get organization data from db and update or insert if necessary"""
     current_id, current_name = get_organization(cur, code)
     if current_id is None:
         cur.execute(
@@ -83,20 +86,18 @@ def set_organization(cur, code, name):
                 returning id""",
             {'code': code, 'name': name})
         return cur.fetchone()[0]
-    elif current_name != name:
+    if current_name != name:
         cur.execute(
             """
                 update rights.organization
                 set name=%(name)s, last_modified=current_timestamp
                 where id=%(id)s""",
             {'name': name, 'id': current_id})
-        return current_id
-    else:
-        return current_id
+    return current_id
 
 
 def revoke_right(cur, person_id, organization_id, right_type):
-    """Revoke right"""
+    """Revoke person right in db"""
     cur.execute(
         """
             update rights.right set valid_to=current_timestamp, last_modified=current_timestamp
@@ -107,26 +108,25 @@ def revoke_right(cur, person_id, organization_id, right_type):
     return cur.rowcount
 
 
-def add_right(cur, person_id, organization_id, right_type, valid_from, valid_to):
-    """Add new right"""
+def add_right(cur, **kwargs):
+    """Add new person right to db
+
+    Required keyword arguments:
+    person_id, organization_id, right_type, valid_from, valid_to
+    """
     cur.execute(
         """
             insert into rights.right (person_id, organization_id, right_type, valid_from, valid_to)
             values (%(person_id)s, %(organization_id)s, %(right_type)s, %(valid_from)s,
                 %(valid_to)s)""",
         {
-            'person_id': person_id, 'organization_id': organization_id, 'right_type': right_type,
-            'valid_from': valid_from, 'valid_to': valid_to})
+            'person_id': kwargs['person_id'], 'organization_id': kwargs['organization_id'],
+            'right_type': kwargs['right_type'], 'valid_from': kwargs['valid_from'],
+            'valid_to': kwargs['valid_to']})
 
 
-def search_right(cur, json_data):
-    persons = json_data['persons']
-    organizations = json_data['organizations']
-    rights = json_data['rights']
-    only_valid = json_data['only_valid']
-    limit = json_data['limit']
-    offset = json_data['offset']
-
+def get_search_rights_sql(only_valid, persons, organizations, rights):
+    """Get SQL string for search right query"""
     sql_what = """
         select p.code, p.first_name, p.last_name, o.code, o.name,
             r.right_type, r.valid_from, r.valid_to"""
@@ -154,12 +154,26 @@ def search_right(cur, json_data):
     sql_limit = """
         limit %(limit)s offset %(offset)s"""
 
+    sql_query = sql_what + sql_from + sql_where + sql_limit
+    sql_total = sql_cnt + sql_from + sql_where
+
+    return sql_query, sql_total
+
+
+def search_rights(cur, **kwargs):
+    """Search for rights in db
+    Required keyword arguments:
+    persons, organizations, rights, only_valid, limit, offset
+    """
+
+    sql_query, sql_total = get_search_rights_sql(
+        kwargs['only_valid'], kwargs['persons'], kwargs['organizations'], kwargs['rights'])
+
     params = {
-        'persons': persons, 'organizations': organizations, 'rights': rights,
-        'limit': limit, 'offset': offset}
+        'persons': kwargs['persons'], 'organizations': kwargs['organizations'],
+        'rights': kwargs['rights'], 'limit': kwargs['limit'], 'offset': kwargs['offset']}
     rights = []
 
-    sql_query = sql_what + sql_from + sql_where + sql_limit
     LOGGER.debug('SQL: %s', cur.mogrify(sql_query, params).decode('utf-8'))
     cur.execute(sql_query, params)
     for rec in cur:
@@ -168,16 +182,15 @@ def search_right(cur, json_data):
             'organization': {'code': rec[3], 'name': rec[4]},
             'right': {'right_type': rec[5], 'valid_from': rec[6], 'valid_to': rec[7]}})
 
-    sql_total = sql_cnt + sql_from + sql_where
     LOGGER.debug('SQL total: %s', cur.mogrify(sql_total, params).decode('utf-8'))
     cur.execute(sql_total, params)
     total = cur.fetchone()[0]
 
-    return {'rights': rights, 'limit': limit, 'offset': offset, 'total': total}
+    return {'rights': rights, 'limit': kwargs['limit'], 'offset': kwargs['offset'], 'total': total}
 
 
 def get_time(cur):
-    """Get current time"""
+    """Get current time from db"""
     cur.execute("""select current_timestamp""")
     return cur.fetchone()[0]
 
@@ -208,6 +221,7 @@ def load_config(config_file):
 
 
 def process_set_right(conf, json_data, log_header):
+    """Process incoming set_right query"""
     if not conf['db_host'] or not conf['db_port'] or not conf['db_db'] or not conf['db_user']\
             or not conf['db_pass']:
         LOGGER.error('%sDB_CONF_ERROR: Cannot access database configuration', log_header)
@@ -237,8 +251,10 @@ def process_set_right(conf, json_data, log_header):
 
             # Add new right
             add_right(
-                cur, person_id, organization_id, json_data['right']['right_type'],
-                json_data['right']['valid_from'], json_data['right']['valid_to'])
+                cur, person_id=person_id, organization_id=organization_id,
+                right_type=json_data['right']['right_type'],
+                valid_from=json_data['right']['valid_from'],
+                valid_to=json_data['right']['valid_to'])
         conn.commit()
 
     LOGGER.info(
@@ -250,6 +266,7 @@ def process_set_right(conf, json_data, log_header):
 
 
 def process_revoke_right(conf, json_data, log_header):
+    """Process incoming revoke_right query"""
     if not conf['db_host'] or not conf['db_port'] or not conf['db_db'] or not conf['db_user']\
             or not conf['db_pass']:
         LOGGER.error('%sDB_CONF_ERROR: Cannot access database configuration', log_header)
@@ -276,6 +293,7 @@ def process_revoke_right(conf, json_data, log_header):
 
 
 def process_search_rights(conf, json_data, log_header):
+    """Process incoming search_rights query"""
     if not conf['db_host'] or not conf['db_port'] or not conf['db_db'] or not conf['db_user']\
             or not conf['db_pass']:
         LOGGER.error('%sDB_CONF_ERROR: Cannot access database configuration', log_header)
@@ -285,7 +303,10 @@ def process_search_rights(conf, json_data, log_header):
 
     with get_db_connection(conf) as conn:
         with conn.cursor() as cur:
-            result = search_right(cur, json_data)
+            result = search_rights(
+                cur, persons=json_data['persons'], organizations=json_data['organizations'],
+                rights=json_data['rights'], only_valid=json_data['only_valid'],
+                limit=json_data['limit'], offset=json_data['offset'])
         conn.commit()
 
     LOGGER.info(
@@ -296,6 +317,7 @@ def process_search_rights(conf, json_data, log_header):
 
 
 def process_set_person(conf, json_data, log_header):
+    """Process incoming set_person query"""
     if not conf['db_host'] or not conf['db_port'] or not conf['db_db'] or not conf['db_user']\
             or not conf['db_pass']:
         LOGGER.error('%sDB_CONF_ERROR: Cannot access database configuration', log_header)
@@ -314,6 +336,7 @@ def process_set_person(conf, json_data, log_header):
 
 
 def process_set_organization(conf, json_data, log_header):
+    """Process incoming set_organization query"""
     if not conf['db_host'] or not conf['db_port'] or not conf['db_db'] or not conf['db_user']\
             or not conf['db_pass']:
         LOGGER.error('%sDB_CONF_ERROR: Cannot access database configuration', log_header)
@@ -369,7 +392,7 @@ class RevokeRightApi(Resource):
         try:
             response = process_revoke_right(self.config, json_data, log_header)
         except psycopg2.Error as err:
-            LOGGER.error('%sDB_ERROR: Unclassified database error: %s', err)
+            LOGGER.error('%sDB_ERROR: Unclassified database error: %s', log_header, err)
             response = {
                 'http_status': 500, 'code': 'DB_ERROR',
                 'msg': 'Unclassified database error'}
