@@ -1,0 +1,16 @@
+{
+  "organization": {
+    "code": "00000000",
+    "name": "Org 0"
+  },
+  "person": {
+    "code": "12345678901",
+    "first_name": "Firstname",
+    "last_name": "Lastname"
+  },
+  "right": {
+    "right_type": "RIGHT1",
+    "valid_from": "2019-09-01T00:00:00",
+    "valid_to": "2019-09-10T00:00:00"
+  }
+}

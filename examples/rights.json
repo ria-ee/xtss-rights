@@ -1,0 +1,8 @@
+{
+  "organizations": ["00000000", "00000001"],
+  "persons": ["12345678901", "12345"],
+  "rights": ["RIGHT1", "XXX"],
+  "only_valid": false,
+  "limit": 5,
+  "offset": 3
+}

@@ -202,12 +202,6 @@ def search_rights(cur, **kwargs):
     return {'rights': rights, 'limit': kwargs['limit'], 'offset': kwargs['offset'], 'total': total}
 
 
-def get_time(cur):
-    """Get current time from db"""
-    cur.execute("""select current_timestamp""")
-    return cur.fetchone()[0]
-
-
 def make_response(data, log_header, log_level='info'):
     """Create JSON response object"""
     response = jsonify({'code': data['code'], 'msg': data['msg']})
@@ -338,6 +332,69 @@ def parse_timestamp(timestamp, json_data, log_header):
                 'msg': 'Unrecognized timestamp: "{}"'.format(timestamp)}
 
 
+def check_timestamp(timestamp, json_data, log_header):
+    """Checks if timestamp is valid (in the future)
+
+    Returns error message or None
+    """
+    if isinstance(timestamp, datetime) and timestamp < datetime.now():
+        LOGGER.warning(
+            '%sINVALID_PARAMETER: timestamps must be in the future '
+            '(Request: %s)', log_header, json_data)
+        return {
+            'http_status': 400, 'code': 'INVALID_PARAMETER',
+            'msg': 'timestamps must be in the future'}
+
+    return None
+
+
+def check_interval(valid_from, valid_to, json_data, log_header):
+    """Checks if time interval is valid
+
+    Returns error message or None
+    """
+    if isinstance(valid_from, datetime) and isinstance(valid_to, datetime) \
+            and valid_from > valid_to:
+        LOGGER.warning(
+            '%sINVALID_PARAMETER: "valid_from" must be smaller then "valid_to" '
+            '(Request: %s)', log_header, json_data)
+        return {
+            'http_status': 400, 'code': 'INVALID_PARAMETER',
+            'msg': '"valid_from" must be smaller then "valid_to"'}
+
+    request_error = check_timestamp(valid_from, json_data, log_header)
+    if request_error:
+        return request_error
+
+    request_error = check_timestamp(valid_to, json_data, log_header)
+    if request_error:
+        return request_error
+
+    return None
+
+
+def parse_interval(valid_from, valid_to, json_data, log_header):
+    """Parse timestamp interval and check its validity
+
+    Returns tuple of valid_from, valid_to, error message
+    """
+    # Parse timestamps
+    valid_from, request_error = parse_timestamp(
+        valid_from, json_data, log_header)
+    if request_error:
+        return None, None, request_error
+    valid_to, request_error = parse_timestamp(
+        valid_to, json_data, log_header)
+    if request_error:
+        return None, None, request_error
+
+    request_error = check_interval(valid_from, valid_to, json_data, log_header)
+    if request_error:
+        return None, None, request_error
+
+    return valid_from, valid_to, None
+
+
 def validate_set_right_request(json_data, log_header):
     """Check request parameters of set_right
 
@@ -361,12 +418,8 @@ def validate_set_right_request(json_data, log_header):
     }
 
     # Parse timestamps
-    kwargs['right']['valid_from'], request_error = parse_timestamp(
-        kwargs['right']['valid_from'], json_data, log_header)
-    if request_error:
-        return None, request_error
-    kwargs['right']['valid_to'], request_error = parse_timestamp(
-        kwargs['right']['valid_to'], json_data, log_header)
+    kwargs['right']['valid_from'], kwargs['right']['valid_to'], request_error = parse_interval(
+        kwargs['right']['valid_from'], kwargs['right']['valid_to'], json_data, log_header)
     if request_error:
         return None, request_error
 
