@@ -346,7 +346,7 @@ def check_timestamp(timestamp, json_data, log_header):
             '(Request: %s)', log_header, json_data)
         return {
             'http_status': 400, 'code': 'INVALID_PARAMETER',
-            'msg': 'timestamps must be in the future'}
+            'msg': 'Timestamps must be in the future'}
 
     return None
 

@@ -1,0 +1,514 @@
+openapi: 3.0.0
+info:
+  description: Rights API
+  version: "1.0.0"
+  title: Rights API
+  contact:
+    email: vitali.stupin@ria.ee
+  license:
+    name: MIT License
+    url: 'https://opensource.org/licenses/MIT'
+tags:
+  - name: admin
+    description: Admin-only calls
+  - name: user
+    description: User calls
+paths:
+  /set-right:
+    post:
+      tags:
+        - admin
+      summary: Set right
+      operationId: setRight
+      description: Add or update person right
+      responses:
+        '201':
+          description: Right added
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ResponseSetRight201'
+              examples:
+                added:
+                  summary: Right added
+                  value: {"code":"CREATED","msg":"New right added"}
+        '400':
+          description: Invalid input
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ResponseSetRight400'
+              examples:
+                missingParam:
+                  summary: Required parameter is missing
+                  value: {"code": "MISSING_PARAMETER", "msg": "Missing parameter \"person->code\""}
+                invalidClass:
+                  summary: Invalid parameter
+                  value: {"code": "INVALID_PARAMETER", "msg": Timestamps must be in the future"}
+        '500':
+          description: Server side error
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Response500'
+              examples:
+                dbConfError:
+                  summary: Application cannot read or parse database configuration
+                  value: {"code": "DB_CONF_ERROR", "msg": "Cannot access database configuration"}
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/SetRight'
+            examples:
+              member:
+                summary: Example request parameters
+                value: {
+  "organization": {
+    "code": "00000000",
+    "name": "Org 0"
+  },
+  "person": {
+    "code": "12345678901",
+    "first_name": "Firstname",
+    "last_name": "Lastname"
+  },
+  "right": {
+    "right_type": "RIGHT1",
+    "valid_from": "2019-09-01T00:00:00",
+    "valid_to": "2019-09-10T00:00:00"
+  }
+}
+        description: New Right to add
+  /revoke-right:
+    post:
+      tags:
+        - admin
+      summary: Revoke right
+      operationId: revokeRight
+      description: Revoke person right
+      responses:
+        '200':
+          description: Right revoked
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ResponseRevokeRight200'
+              examples:
+                revoked:
+                  summary: Right revoked
+                  value: {"code":"CREATED","msg":"New right added"}
+                not_found:
+                  summary: Right was not found
+                  value: {"code":"CREATED","msg":"No right was found"}
+        '400':
+          description: Invalid input
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ResponseRevokeRight400'
+              examples:
+                missingParam:
+                  summary: Required parameter is missing
+                  value: {"code": "MISSING_PARAMETER", "msg": "Missing parameter \"right_type\""}
+        '500':
+          description: Server side error
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Response500'
+              examples:
+                dbConfError:
+                  summary: Application cannot read or parse database configuration
+                  value: {"code": "DB_CONF_ERROR", "msg": "Cannot access database configuration"}
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/RevokeRight'
+            examples:
+              member:
+                summary: Example request parameters
+                value: {
+  "organization_code": "00000000",
+  "person_code": "12345678901",
+  "right_type": "RIGHT1"
+}
+        description: Right to revoke
+  /rights:
+    post:
+      tags:
+        - admin
+        - user
+      summary: Search rights
+      operationId: searchRights
+      description: Search for person rights
+      responses:
+        '200':
+          description: Rights found
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ResponseRights200'
+              examples:
+                found:
+                  summary: Rights found
+                  value: {"code":"OK","msg":"Found 1 rights","response":{"limit":5,"offset":0,"total":1,"rights":[{"organization":{"code":"00000000","name":"Org 0"},"person":{"code":"12345678901","first_name":"Firstname","last_name":"Lastname"},"right":{"right_type":"RIGHT1","valid_from":"2019-08-29T13:11:34.432664","valid_to":"2019-09-10T00:00:00.000000"}}]}}
+        '500':
+          description: Server side error
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Response500'
+              examples:
+                dbConfError:
+                  summary: Application cannot read or parse database configuration
+                  value: {"code": "DB_CONF_ERROR", "msg": "Cannot access database configuration"}
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/Rights'
+            examples:
+              member:
+                summary: Example request parameters
+                value: {
+  "organizations": ["00000000", "00000001"],
+  "persons": ["12345678901", "12345"],
+  "rights": ["RIGHT1", "XXX"],
+  "only_valid": false,
+  "limit": 5,
+  "offset": 2
+}
+
+        description: Search rights
+  /person:
+    post:
+      tags:
+        - admin
+      summary: Set person data
+      operationId: setPerson
+      description: Add or update person data
+      responses:
+        '200':
+          description: Person updated
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ResponseSetPerson200'
+              examples:
+                added:
+                  summary: Right added
+                  value: {"code":"OK","msg":"Person updated"}
+        '400':
+          description: Invalid input
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ResponseSetPerson400'
+              examples:
+                missingParam:
+                  summary: Required parameter is missing
+                  value: {"code": "MISSING_PARAMETER", "msg": "Missing parameter \"code\""}
+        '500':
+          description: Server side error
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Response500'
+              examples:
+                dbConfError:
+                  summary: Application cannot read or parse database configuration
+                  value: {"code": "DB_CONF_ERROR", "msg": "Cannot access database configuration"}
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/SetPerson'
+            examples:
+              member:
+                summary: Example request parameters
+                value: {
+  "code": "12345678901",
+  "first_name": "First-name",
+  "last_name": "Last-name"
+}
+
+        description: New person data
+  /organization:
+    post:
+      tags:
+        - admin
+      summary: Set organization data
+      operationId: setOrganization
+      description: Add or update organization data
+      responses:
+        '200':
+          description: Organization updated
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ResponseSetOrganization200'
+              examples:
+                added:
+                  summary: Right added
+                  value: {"code":"OK","msg":"Organization updated"}
+        '400':
+          description: Invalid input
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ResponseSetOrganization400'
+              examples:
+                missingParam:
+                  summary: Required parameter is missing
+                  value: {"code": "MISSING_PARAMETER", "msg": "Missing parameter \"code\""}
+        '500':
+          description: Server side error
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Response500'
+              examples:
+                dbConfError:
+                  summary: Application cannot read or parse database configuration
+                  value: {"code": "DB_CONF_ERROR", "msg": "Cannot access database configuration"}
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/SetOrganization'
+            examples:
+              member:
+                summary: Example request parameters
+                value: {
+  "code": "00000000",
+  "name": "Org name"
+}
+
+        description: New organization data
+components:
+  schemas:
+    Organization:
+      type: object
+      properties:
+        code:
+          type: string
+          example: "00000000"
+        name:
+          type: string
+          example: OrgName
+    Person:
+      type: object
+      properties:
+        code:
+          type: string
+          example: "00000000"
+        first_name:
+          type: string
+          example: Firstname
+        last_name:
+          type: string
+          example: Lastname
+    Right:
+      type: object
+      properties:
+        right_type:
+          type: string
+          example: RIGHT1
+        valid_from:
+          type: string
+          example: "2019-09-01T00:00:00"
+        valid_to:
+          type: string
+          example: "2019-09-01T00:00:00"
+    SetRight:
+      type: object
+      properties:
+        organization:
+          $ref: "#/components/schemas/Organization"
+        person:
+          $ref: "#/components/schemas/Person"
+        right:
+          $ref: "#/components/schemas/Right"
+    RevokeRight:
+      type: object
+      properties:
+        organization_code:
+          type: string
+          example: "00000000"
+        person_code:
+          type: string
+          example: "12345678901"
+        right_type:
+          type: string
+          example: RIGHT1
+    Rights:
+      type: object
+      properties:
+        organizations:
+          type: array
+          items:
+            type: string
+            example: "00000000"
+        persons:
+          type: array
+          items:
+            type: string
+            example: "12345678901"
+        rights:
+          type: array
+          items:
+            type: string
+            example: RIGHT1
+        only_valid:
+          type: boolean
+          example: false
+          default: true
+        limit:
+          type: integer
+          example: 10
+          default: 100
+        offset:
+          type: integer
+          example: 10
+          default: 0
+    SetPerson:
+      $ref: "#/components/schemas/Person"
+    SetOrganization:
+      $ref: "#/components/schemas/Organization"
+    ResponseSetRight201:
+      type: object
+      properties:
+        code:
+          type: string
+          enum:
+            - CREATED
+          example: CREATED
+        msg:
+          type: string
+          example: New right added
+    ResponseSetRight400:
+      type: object
+      properties:
+        code:
+          type: string
+          enum:
+            - MISSING_PARAMETER
+            - INVALID_PARAMETER
+          example: MISSING_PARAMETER
+        msg:
+          type: string
+          example: "Missing parameter \"person->code\""
+    ResponseRevokeRight200:
+      type: object
+      properties:
+        code:
+          type: string
+          enum:
+            - OK
+          example: OK
+        msg:
+          type: string
+          example: Right revoked
+    ResponseRevokeRight400:
+      type: object
+      properties:
+        code:
+          type: string
+          enum:
+            - MISSING_PARAMETER
+          example: MISSING_PARAMETER
+        msg:
+          type: string
+          example: "Missing parameter \"right_type\""
+    ResponseRights200:
+      type: object
+      properties:
+        code:
+          type: string
+          enum:
+            - OK
+          example: OK
+        msg:
+          type: string
+          example: Found 1 rights
+        response:
+          type: object
+          properties:
+            rights:
+              type: array
+              items:
+                type: object
+                properties:
+                  organization:
+                    $ref: "#/components/schemas/Organization"
+                  person:
+                    $ref: "#/components/schemas/Person"
+                  right:
+                    $ref: "#/components/schemas/Right"
+            limit:
+              type: integer
+              example: 100
+            offset:
+              type: integer
+              example: 0
+            total:
+              type: integer
+              example: 10
+    ResponseSetPerson200:
+      type: object
+      properties:
+        code:
+          type: string
+          enum:
+            - OK
+          example: OK
+        msg:
+          type: string
+          example: Person updated
+    ResponseSetPerson400:
+      type: object
+      properties:
+        code:
+          type: string
+          enum:
+            - MISSING_PARAMETER
+          example: MISSING_PARAMETER
+        msg:
+          type: string
+          example: "Missing parameter \"code\""
+    ResponseSetOrganization200:
+      type: object
+      properties:
+        code:
+          type: string
+          enum:
+            - OK
+          example: OK
+        msg:
+          type: string
+          example: Organization updated
+    ResponseSetOrganization400:
+      type: object
+      properties:
+        code:
+          type: string
+          enum:
+            - MISSING_PARAMETER
+          example: MISSING_PARAMETER
+        msg:
+          type: string
+          example: "Missing parameter \"code\""
+    Response500:
+      type: object
+      properties:
+        code:
+          type: string
+          enum:
+            - DB_CONF_ERROR
+            - DB_ERROR
+          example: DB_CONF_ERROR
+        msg:
+          type: string
+          example: Cannot access database configuration
