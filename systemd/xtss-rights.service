@@ -1,0 +1,13 @@
+[Unit]
+Description=XTSS Rights Service API
+After=network.target
+
+[Service]
+User=xtss-rights
+Group=www-data
+WorkingDirectory=/opt/xtss-rights
+Environment="PATH=/opt/xtss-rights/venv/bin"
+ExecStart=/opt/xtss-rights/venv/bin/gunicorn --workers 4 --bind unix:/opt/xtss-rights/socket/rights.sock -m 007 server:app
+
+[Install]
+WantedBy=multi-user.target
