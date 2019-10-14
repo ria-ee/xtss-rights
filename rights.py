@@ -666,7 +666,7 @@ def check_client(config, client_dn):
 
 def incorrect_client(client_dn, log_header):
     """Return error response when client is not allowed"""
-    LOGGER.error('FORBIDDEN: Client certificate is not allowed: %s', client_dn)
+    LOGGER.error('%sFORBIDDEN: Client certificate is not allowed: %s', log_header, client_dn)
     return make_response({
         'http_status': 403, 'code': 'FORBIDDEN',
         'msg': 'Client certificate is not allowed: {}'.format(client_dn)}, log_header)
