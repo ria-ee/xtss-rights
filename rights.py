@@ -646,6 +646,32 @@ def process_set_organization(conf, json_data, log_header):
     return {'http_status': 200, 'code': 'OK', 'msg': 'Organization updated'}
 
 
+def check_client(config, client_dn):
+    """Check if client dn is in whitelist"""
+    # If config is None then all clients are not allowed
+    if config is None:
+        return False
+    if config.get('allow_all', False) is True:
+        return True
+
+    allowed = config.get('allowed')
+    if client_dn is None or not isinstance(allowed, list):
+        return False
+
+    if client_dn in allowed:
+        return True
+
+    return False
+
+
+def incorrect_client(client_dn, log_header):
+    """Return error response when client is not allowed"""
+    LOGGER.error('FORBIDDEN: Client certificate is not allowed: %s', client_dn)
+    return make_response({
+        'http_status': 403, 'code': 'FORBIDDEN',
+        'msg': 'Client certificate is not allowed: {}'.format(client_dn)}, log_header)
+
+
 class SetRightApi(Resource):
     """SetRight API class for Flask"""
     def __init__(self, config):
@@ -655,8 +681,13 @@ class SetRightApi(Resource):
         """POST method for changing or adding right"""
         log_header = '[SetRight:post] '
         json_data = request.get_json(force=True)
+        client_dn = request.headers.get('X-Ssl-Client-S-Dn')
 
         LOGGER.info('%sIncoming request: %s', log_header, json_data)
+        LOGGER.info('Client DN: %s', client_dn)
+
+        if not check_client(self.config, client_dn):
+            return incorrect_client(client_dn, log_header)
 
         try:
             response = process_set_right(self.config, json_data, log_header)
@@ -678,8 +709,13 @@ class RevokeRightApi(Resource):
         """POST method for revoking right"""
         log_header = '[RevokeRight:post] '
         json_data = request.get_json(force=True)
+        client_dn = request.headers.get('X-Ssl-Client-S-Dn')
 
         LOGGER.info('%sIncoming request: %s', log_header, json_data)
+        LOGGER.info('Client DN: %s', client_dn)
+
+        if not check_client(self.config, client_dn):
+            return incorrect_client(client_dn, log_header)
 
         try:
             response = process_revoke_right(self.config, json_data, log_header)
@@ -701,8 +737,13 @@ class RightsApi(Resource):
         """POST method for searching for rights"""
         log_header = '[Rights:post] '
         json_data = request.get_json(force=True)
+        client_dn = request.headers.get('X-Ssl-Client-S-Dn')
 
         LOGGER.info('%sIncoming request: %s', log_header, json_data)
+        LOGGER.info('Client DN: %s', client_dn)
+
+        if not check_client(self.config, client_dn):
+            return incorrect_client(client_dn, log_header)
 
         try:
             response = process_search_rights(self.config, json_data, log_header)
@@ -724,8 +765,13 @@ class PersonApi(Resource):
         """POST method form changing or adding person"""
         log_header = '[Person:post] '
         json_data = request.get_json(force=True)
+        client_dn = request.headers.get('X-Ssl-Client-S-Dn')
 
         LOGGER.info('%sIncoming request: %s', log_header, json_data)
+        LOGGER.info('Client DN: %s', client_dn)
+
+        if not check_client(self.config, client_dn):
+            return incorrect_client(client_dn, log_header)
 
         try:
             response = process_set_person(self.config, json_data, log_header)
@@ -747,8 +793,13 @@ class OrganizationApi(Resource):
         """POST method for changing or adding organization"""
         log_header = '[Organization:post] '
         json_data = request.get_json(force=True)
+        client_dn = request.headers.get('X-Ssl-Client-S-Dn')
 
         LOGGER.info('%sIncoming request: %s', log_header, json_data)
+        LOGGER.info('Client DN: %s', client_dn)
+
+        if not check_client(self.config, client_dn):
+            return incorrect_client(client_dn, log_header)
 
         try:
             response = process_set_organization(self.config, json_data, log_header)
