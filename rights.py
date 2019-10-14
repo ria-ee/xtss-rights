@@ -684,7 +684,7 @@ class SetRightApi(Resource):
         client_dn = request.headers.get('X-Ssl-Client-S-Dn')
 
         LOGGER.info('%sIncoming request: %s', log_header, json_data)
-        LOGGER.info('Client DN: %s', client_dn)
+        LOGGER.info('%sClient DN: %s', log_header, client_dn)
 
         if not check_client(self.config, client_dn):
             return incorrect_client(client_dn, log_header)
@@ -712,7 +712,7 @@ class RevokeRightApi(Resource):
         client_dn = request.headers.get('X-Ssl-Client-S-Dn')
 
         LOGGER.info('%sIncoming request: %s', log_header, json_data)
-        LOGGER.info('Client DN: %s', client_dn)
+        LOGGER.info('%sClient DN: %s', log_header, client_dn)
 
         if not check_client(self.config, client_dn):
             return incorrect_client(client_dn, log_header)
@@ -740,7 +740,7 @@ class RightsApi(Resource):
         client_dn = request.headers.get('X-Ssl-Client-S-Dn')
 
         LOGGER.info('%sIncoming request: %s', log_header, json_data)
-        LOGGER.info('Client DN: %s', client_dn)
+        LOGGER.info('%sClient DN: %s', log_header, client_dn)
 
         if not check_client(self.config, client_dn):
             return incorrect_client(client_dn, log_header)
@@ -768,7 +768,7 @@ class PersonApi(Resource):
         client_dn = request.headers.get('X-Ssl-Client-S-Dn')
 
         LOGGER.info('%sIncoming request: %s', log_header, json_data)
-        LOGGER.info('Client DN: %s', client_dn)
+        LOGGER.info('%sClient DN: %s', log_header, client_dn)
 
         if not check_client(self.config, client_dn):
             return incorrect_client(client_dn, log_header)
@@ -796,7 +796,7 @@ class OrganizationApi(Resource):
         client_dn = request.headers.get('X-Ssl-Client-S-Dn')
 
         LOGGER.info('%sIncoming request: %s', log_header, json_data)
-        LOGGER.info('Client DN: %s', client_dn)
+        LOGGER.info('%sClient DN: %s', log_header, client_dn)
 
         if not check_client(self.config, client_dn):
             return incorrect_client(client_dn, log_header)
