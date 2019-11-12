@@ -173,7 +173,7 @@ paths:
               examples:
                 found:
                   summary: Rights found
-                  value: {"code":"OK","msg":"Found 1 rights","response":{"limit":5,"offset":0,"total":1,"rights":[{"organization":{"code":"00000000","name":"Org 0"},"person":{"code":"12345678901","first_name":"Firstname","last_name":"Lastname"},"right":{"right_type":"RIGHT1","valid_from":"2019-08-29T13:11:34.432664","valid_to":"2019-09-10T00:00:00.000000"}}]}}
+                  value: {"code":"OK","msg":"Found 1 rights","response":{"limit":5,"offset":0,"total":1,"rights":[{"organization":{"code":"00000000","name":"Org 0"},"person":{"code":"12345678901","first_name":"Firstname","last_name":"Lastname"},"right":{"right_type":"RIGHT1","valid_from":"2019-08-29T13:11:34.432664","valid_to":"2019-09-10T00:00:00.000000","revoked":false}}]}}
         '403':
           description: Client certificate is not allowed
           content:
@@ -372,6 +372,21 @@ components:
         valid_to:
           type: string
           example: "2019-09-01T00:00:00"
+    RightResp:
+      type: object
+      properties:
+        right_type:
+          type: string
+          example: RIGHT1
+        valid_from:
+          type: string
+          example: "2019-09-01T00:00:00"
+        valid_to:
+          type: string
+          example: "2019-09-01T00:00:00"
+        revoked:
+          type: boolean
+          example: false
     SetRight:
       type: object
       properties:
@@ -496,7 +511,7 @@ components:
                   person:
                     $ref: "#/components/schemas/Person"
                   right:
-                    $ref: "#/components/schemas/Right"
+                    $ref: "#/components/schemas/RightResp"
             limit:
               type: integer
               example: 100

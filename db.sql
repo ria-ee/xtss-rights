@@ -1,7 +1,7 @@
 CREATE SCHEMA IF NOT EXISTS rights;
 
 DROP TABLE IF EXISTS rights.change_log;
-DROP TABLE IF EXISTS rights.right;
+DROP TABLE IF EXISTS rights."right";
 DROP TABLE IF EXISTS rights.organization;
 DROP TABLE IF EXISTS rights.person;
 
@@ -36,7 +36,7 @@ CREATE TABLE rights.person
     last_modified timestamp without time zone DEFAULT CURRENT_TIMESTAMP
 );
 
-CREATE TABLE rights.right
+CREATE TABLE rights."right"
 (
     id bigserial PRIMARY KEY,
     person_id bigint NOT NULL,
@@ -44,6 +44,7 @@ CREATE TABLE rights.right
     right_type character varying NOT NULL,
     valid_from timestamp without time zone NOT NULL DEFAULT CURRENT_TIMESTAMP,
     valid_to timestamp without time zone,
+    revoked boolean DEFAULT false NOT NULL,
     created timestamp without time zone DEFAULT CURRENT_TIMESTAMP,
     last_modified timestamp without time zone DEFAULT CURRENT_TIMESTAMP,
     CONSTRAINT rights_organization_id_fkey FOREIGN KEY (organization_id)
@@ -55,8 +56,6 @@ CREATE TABLE rights.right
         ON UPDATE CASCADE
         ON DELETE CASCADE
 );
-
-
 
 CREATE OR REPLACE FUNCTION rights.logger() RETURNS TRIGGER AS $body$
 DECLARE
@@ -103,10 +102,42 @@ CREATE TRIGGER logger
 AFTER INSERT OR UPDATE OR DELETE ON rights.person
 FOR EACH ROW EXECUTE PROCEDURE rights.logger();
 
-DROP TRIGGER IF EXISTS logger on rights.right;
+DROP TRIGGER IF EXISTS logger on rights."right";
 CREATE TRIGGER logger
-AFTER INSERT OR UPDATE OR DELETE ON rights.right
+AFTER INSERT OR UPDATE OR DELETE ON rights."right"
 FOR EACH ROW EXECUTE PROCEDURE rights.logger();
+
+CREATE OR REPLACE FUNCTION rights.check_right() RETURNS TRIGGER AS $body$
+BEGIN
+    IF TG_OP in ('INSERT', 'UPDATE') THEN
+        -- Check that "valid_from" is not bigger than "valid_to"
+        IF COALESCE(NEW.valid_from, current_timestamp) > COALESCE(NEW.valid_to, NEW.valid_from, current_timestamp) THEN
+            RAISE EXCEPTION '[rights.check_right] - "valid_from" cannot be bigger than "valid_to"';
+        END IF;
+
+        -- Cannot add new right if existing one is not revoked
+        IF (NOT NEW.revoked AND EXISTS(
+            SELECT 1 FROM rights."right"
+            WHERE person_id = NEW.person_id AND organization_id = NEW.organization_id AND right_type = NEW.right_type and revoked = false AND id <> NEW.id
+        )) THEN
+            RAISE EXCEPTION '[rights.check_right] - revoke existing right before adding new one';
+        END IF;
+
+        RETURN NEW;
+    END IF;
+EXCEPTION
+    WHEN OTHERS THEN
+        RAISE WARNING '[rights.check_right] - Other error occurred - SQLSTATE: %, SQLERRM: %',SQLSTATE,SQLERRM;
+        RETURN NULL;
+END;
+$body$
+LANGUAGE plpgsql
+SECURITY DEFINER;
+
+DROP TRIGGER IF EXISTS check_right on rights."right";
+CREATE TRIGGER check_right
+BEFORE INSERT OR UPDATE ON rights."right"
+FOR EACH ROW EXECUTE PROCEDURE rights.check_right();
 
 CREATE ROLE rights_app WITH LOGIN;
 GRANT CONNECT ON DATABASE rights TO rights_app;
