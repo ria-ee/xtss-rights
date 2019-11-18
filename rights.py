@@ -106,11 +106,10 @@ def revoke_right(cur, person_id, organization_id, right_type):
         """
             update rights.right
             set
-                valid_from=least(valid_from, current_timestamp),
-                valid_to=current_timestamp, last_modified=current_timestamp
+                revoked=true
             where person_id=%(person_id)s and organization_id=%(organization_id)s
                 and right_type=%(right_type)s
-                and COALESCE(valid_to, current_timestamp + interval '1 day')>current_timestamp""",
+                and not revoked""",
         {'person_id': person_id, 'organization_id': organization_id, 'right_type': right_type})
     return cur.rowcount
 
@@ -137,7 +136,7 @@ def get_search_rights_sql(only_valid, persons, organizations, rights):
     """Get SQL string for search right query"""
     sql_what = """
         select p.code, p.first_name, p.last_name, o.code, o.name,
-            r.right_type, r.valid_from, r.valid_to"""
+            r.right_type, r.valid_from, r.valid_to, r.revoked"""
     sql_cnt = """
         select count(1)"""
     sql_from = """
@@ -148,6 +147,7 @@ def get_search_rights_sql(only_valid, persons, organizations, rights):
         where true"""
     if only_valid:
         sql_where += """
+            and not r.revoked
             and r.valid_from<=current_timestamp
             and COALESCE(valid_to, current_timestamp + interval '1 day')>current_timestamp"""
     if persons:
@@ -193,7 +193,9 @@ def search_rights(cur, **kwargs):
         rights.append({
             'person': {'code': rec[0], 'first_name': rec[1], 'last_name': rec[2]},
             'organization': {'code': rec[3], 'name': rec[4]},
-            'right': {'right_type': rec[5], 'valid_from': valid_from, 'valid_to': valid_to}})
+            'right': {
+                'right_type': rec[5], 'valid_from': valid_from, 'valid_to': valid_to,
+                'revoked': rec[8]}})
 
     LOGGER.debug('SQL total: %s', cur.mogrify(sql_total, params).decode('utf-8'))
     cur.execute(sql_total, params)
