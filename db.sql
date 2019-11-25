@@ -57,55 +57,43 @@ CREATE TABLE rights."right"
         ON DELETE CASCADE
 );
 
-CREATE OR REPLACE FUNCTION rights.logger() RETURNS TRIGGER AS $body$
-DECLARE
-    v_old_data TEXT;
-    v_new_data TEXT;
+CREATE OR REPLACE FUNCTION rights.stamper() RETURNS TRIGGER AS $body$
 BEGIN
-    IF (TG_OP = 'UPDATE') THEN
-        v_old_data := ROW(OLD.*);
-        v_new_data := ROW(NEW.*);
-        INSERT INTO rights.change_log (table_name, record_id, operation, old_value, new_value)
-        VALUES (TG_TABLE_SCHEMA::TEXT||'.'||TG_TABLE_NAME::TEXT, OLD.id, TG_OP, v_old_data, v_new_data);
+    IF (TG_OP = 'INSERT') THEN
+        NEW.created := current_timestamp;
+        NEW.last_modified := current_timestamp;
         RETURN NEW;
-    ELSIF (TG_OP = 'DELETE') THEN
-        v_old_data := ROW(OLD.*);
-        INSERT INTO rights.change_log (table_name, record_id, operation, old_value, new_value)
-        VALUES (TG_TABLE_SCHEMA::TEXT||'.'||TG_TABLE_NAME::TEXT, OLD.id, TG_OP, v_old_data, NULL);
-        RETURN OLD;
-    ELSIF (TG_OP = 'INSERT') THEN
-        v_new_data := ROW(NEW.*);
-        INSERT INTO rights.change_log (table_name, record_id, operation, old_value, new_value)
-        VALUES (TG_TABLE_SCHEMA::TEXT||'.'||TG_TABLE_NAME::TEXT, NEW.id, TG_OP, NULL, v_new_data);
+    ELSIF (TG_OP = 'UPDATE') THEN
+        NEW.last_modified := current_timestamp;
         RETURN NEW;
     ELSE
-        RAISE WARNING '[rights.logger] - Other action occurred: %, at %',TG_OP,now();
+        RAISE WARNING '[rights.stamper] - Other action occurred: %, at %',TG_OP,now();
         RETURN NULL;
     END IF;
 
 EXCEPTION
     WHEN OTHERS THEN
-        RAISE WARNING '[rights.logger] - Other error occurred - SQLSTATE: %, SQLERRM: %',SQLSTATE,SQLERRM;
+        RAISE WARNING '[rights.stamper] - Other error occurred - SQLSTATE: %, SQLERRM: %',SQLSTATE,SQLERRM;
         RETURN NULL;
 END;
 $body$
 LANGUAGE plpgsql
 SECURITY DEFINER;
 
-DROP TRIGGER IF EXISTS logger on rights.organization;
-CREATE TRIGGER logger
-AFTER INSERT OR UPDATE OR DELETE ON rights.organization
-FOR EACH ROW EXECUTE PROCEDURE rights.logger();
+DROP TRIGGER IF EXISTS stamper ON rights.organization;
+CREATE TRIGGER stamper
+BEFORE INSERT OR UPDATE ON rights.organization
+FOR EACH ROW EXECUTE PROCEDURE rights.stamper();
 
-DROP TRIGGER IF EXISTS logger on rights.person;
-CREATE TRIGGER logger
-AFTER INSERT OR UPDATE OR DELETE ON rights.person
-FOR EACH ROW EXECUTE PROCEDURE rights.logger();
+DROP TRIGGER IF EXISTS stamper ON rights.person;
+CREATE TRIGGER stamper
+BEFORE INSERT OR UPDATE ON rights.person
+FOR EACH ROW EXECUTE PROCEDURE rights.stamper();
 
-DROP TRIGGER IF EXISTS logger on rights."right";
-CREATE TRIGGER logger
-AFTER INSERT OR UPDATE OR DELETE ON rights."right"
-FOR EACH ROW EXECUTE PROCEDURE rights.logger();
+DROP TRIGGER IF EXISTS stamper ON rights."right";
+CREATE TRIGGER stamper
+BEFORE INSERT OR UPDATE ON rights."right"
+FOR EACH ROW EXECUTE PROCEDURE rights.stamper();
 
 CREATE OR REPLACE FUNCTION rights.check_right() RETURNS TRIGGER AS $body$
 BEGIN
@@ -134,7 +122,57 @@ $body$
 LANGUAGE plpgsql
 SECURITY DEFINER;
 
-DROP TRIGGER IF EXISTS check_right on rights."right";
+DROP TRIGGER IF EXISTS check_right ON rights."right";
 CREATE TRIGGER check_right
 BEFORE INSERT OR UPDATE ON rights."right"
 FOR EACH ROW EXECUTE PROCEDURE rights.check_right();
+
+CREATE OR REPLACE FUNCTION rights.logger() RETURNS TRIGGER AS $body$
+DECLARE
+    v_old_data TEXT;
+    v_new_data TEXT;
+BEGIN
+    IF (TG_OP = 'INSERT') THEN
+        v_new_data := ROW(NEW.*);
+        INSERT INTO rights.change_log (table_name, record_id, operation, old_value, new_value)
+        VALUES (TG_TABLE_SCHEMA::TEXT||'.'||TG_TABLE_NAME::TEXT, NEW.id, TG_OP, NULL, v_new_data);
+        RETURN NEW;
+    ELSIF (TG_OP = 'UPDATE') THEN
+        v_old_data := ROW(OLD.*);
+        v_new_data := ROW(NEW.*);
+        INSERT INTO rights.change_log (table_name, record_id, operation, old_value, new_value)
+        VALUES (TG_TABLE_SCHEMA::TEXT||'.'||TG_TABLE_NAME::TEXT, OLD.id, TG_OP, v_old_data, v_new_data);
+        RETURN NEW;
+    ELSIF (TG_OP = 'DELETE') THEN
+        v_old_data := ROW(OLD.*);
+        INSERT INTO rights.change_log (table_name, record_id, operation, old_value, new_value)
+        VALUES (TG_TABLE_SCHEMA::TEXT||'.'||TG_TABLE_NAME::TEXT, OLD.id, TG_OP, v_old_data, NULL);
+        RETURN OLD;
+    ELSE
+        RAISE WARNING '[rights.logger] - Other action occurred: %, at %',TG_OP,now();
+        RETURN NULL;
+    END IF;
+
+EXCEPTION
+    WHEN OTHERS THEN
+        RAISE WARNING '[rights.logger] - Other error occurred - SQLSTATE: %, SQLERRM: %',SQLSTATE,SQLERRM;
+        RETURN NULL;
+END;
+$body$
+LANGUAGE plpgsql
+SECURITY DEFINER;
+
+DROP TRIGGER IF EXISTS logger ON rights.organization;
+CREATE TRIGGER logger
+AFTER INSERT OR UPDATE OR DELETE ON rights.organization
+FOR EACH ROW EXECUTE PROCEDURE rights.logger();
+
+DROP TRIGGER IF EXISTS logger ON rights.person;
+CREATE TRIGGER logger
+AFTER INSERT OR UPDATE OR DELETE ON rights.person
+FOR EACH ROW EXECUTE PROCEDURE rights.logger();
+
+DROP TRIGGER IF EXISTS logger ON rights."right";
+CREATE TRIGGER logger
+AFTER INSERT OR UPDATE OR DELETE ON rights."right"
+FOR EACH ROW EXECUTE PROCEDURE rights.logger();
