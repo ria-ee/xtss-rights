@@ -3,3 +3,11 @@ venv*/
 .coverage
 htmlcov/
 config.json
+
+# Python byte-compiled / optimized / DLL files
+__pycache__/
+*.py[cod]
+*$py.class
+
+# Copy of files for local docker
+local/files/
