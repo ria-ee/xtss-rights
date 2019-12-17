@@ -60,8 +60,7 @@ def set_person(cur, code, first_name, last_name):
         cur.execute(
             """
                 update rights.person
-                set first_name=%(first_name)s, last_name=%(last_name)s,
-                    last_modified=current_timestamp
+                set first_name=%(first_name)s, last_name=%(last_name)s
                 where id=%(id)s""",
             {'first_name': first_name, 'last_name': last_name, 'id': current_id})
     return current_id
@@ -94,7 +93,7 @@ def set_organization(cur, code, name):
         cur.execute(
             """
                 update rights.organization
-                set name=%(name)s, last_modified=current_timestamp
+                set name=%(name)s
                 where id=%(id)s""",
             {'name': name, 'id': current_id})
     return current_id
