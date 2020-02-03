@@ -263,7 +263,7 @@ def check_required_dict_item(dict_name, item_name, json_data, log_header):
 
     Returns error message or None
     """
-    if not json_data.get(dict_name).get(item_name):
+    if not json_data.get(dict_name) or not json_data.get(dict_name).get(item_name):
         LOGGER.warning(
             '%sMISSING_PARAMETER: Missing parameter "%s->%s" '
             '(Request: %s)', log_header, dict_name, item_name, json_data)
@@ -754,6 +754,7 @@ class RightsApi(Resource):
                 'http_status': 500, 'code': 'DB_ERROR',
                 'msg': 'Unclassified database error'}
 
+        # Logging responses (that may be big) only on DEBUG level
         return make_response(response, log_header, log_level='debug')
 
 
