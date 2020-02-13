@@ -20,7 +20,7 @@ paths:
         - admin
       summary: Set right
       operationId: setRight
-      description: Add or update person right
+      description: Add or update person right. Undefined/missing organization or person names will not overwrite names in database, but empty names will.
       responses:
         '201':
           description: Right added

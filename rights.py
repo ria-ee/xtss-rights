@@ -56,11 +56,13 @@ def set_person(cur, code, first_name, last_name):
                 returning id""",
             {'code': code, 'first_name': first_name, 'last_name': last_name})
         return cur.fetchone()[0]
-    if current_first_name != first_name or current_last_name != last_name:
+    if (first_name is not None and current_first_name != first_name) \
+            or (last_name is not None and current_last_name != last_name):
         cur.execute(
             """
                 update rights.person
-                set first_name=%(first_name)s, last_name=%(last_name)s
+                set first_name=COALESCE(%(first_name)s, first_name),
+                    last_name=COALESCE(%(last_name)s, last_name)
                 where id=%(id)s""",
             {'first_name': first_name, 'last_name': last_name, 'id': current_id})
     return current_id
@@ -89,7 +91,7 @@ def set_organization(cur, code, name):
                 returning id""",
             {'code': code, 'name': name})
         return cur.fetchone()[0]
-    if current_name != name:
+    if name is not None and current_name != name:
         cur.execute(
             """
                 update rights.organization
