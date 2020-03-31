@@ -380,10 +380,10 @@ components:
           example: RIGHT1
         valid_from:
           type: string
-          example: "2019-09-01T00:00:00"
+          example: "2019-09-01T00:00:00.000000"
         valid_to:
           type: string
-          example: "2019-09-01T00:00:00"
+          example: "2019-09-01T00:00:00.000000"
         revoked:
           type: boolean
           example: false
