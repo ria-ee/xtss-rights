@@ -675,6 +675,20 @@ def incorrect_client(client_dn, log_header):
         'msg': 'Client certificate is not allowed: {}'.format(client_dn)}, log_header)
 
 
+def test_db(conf, log_header):
+    """Add new X-Road subsystem to Central Server"""
+    conf_error = validate_config(conf, log_header)
+    if conf_error:
+        return conf_error
+
+    with get_db_connection(conf) as conn:
+        with conn.cursor() as cur:
+            cur.execute("""select count(1) from rights."right";""")
+            return {
+                'http_status': 200, 'code': 'OK',
+                'msg': 'API is ready'}
+
+
 class SetRightApi(Resource):
     """SetRight API class for Flask"""
     def __init__(self, config):
@@ -807,6 +821,27 @@ class OrganizationApi(Resource):
 
         try:
             response = process_set_organization(self.config, json_data, log_header)
+        except psycopg2.Error as err:
+            LOGGER.error('%sDB_ERROR: Unclassified database error: %s', log_header, err)
+            response = {
+                'http_status': 500, 'code': 'DB_ERROR',
+                'msg': 'Unclassified database error'}
+
+        return make_response(response, log_header)
+
+
+class StatusApi(Resource):
+    """Status API class for Flask"""
+    def __init__(self, config):
+        self.config = config
+
+    def get(self):
+        """GET method"""
+        log_header = '[Status:get] '
+        LOGGER.info('%sIncoming status request', log_header)
+
+        try:
+            response = test_db(self.config, log_header)
         except psycopg2.Error as err:
             LOGGER.error('%sDB_ERROR: Unclassified database error: %s', log_header, err)
             response = {

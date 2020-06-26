@@ -133,3 +133,10 @@ And then to read sample data:
 ```
 curl --cert client.crt --key client.key --cacert rights.crt -i -XPOST -d '{}' https://<xtss-rights.hostname>:5443/rights
 ```
+
+## API Status
+
+API Status is available on `/status` endpoint. You can test that with curl:
+```bash
+curl -k https://<xtss-rights.hostname>:5443/status
+```

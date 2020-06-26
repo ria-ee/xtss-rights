@@ -3,7 +3,8 @@
 import logging
 from flask import Flask
 from flask_restful import Api
-from rights import SetRightApi, RevokeRightApi, RightsApi, PersonApi, OrganizationApi, load_config
+from rights import SetRightApi, RevokeRightApi, RightsApi, PersonApi, OrganizationApi, StatusApi,\
+    load_config
 
 handler = logging.FileHandler('/var/log/xtss-rights/rights.log')
 handler.setFormatter(logging.Formatter('%(asctime)s - %(process)d - %(levelname)s: %(message)s'))
@@ -27,5 +28,6 @@ api.add_resource(RevokeRightApi, '/revoke-right', resource_class_kwargs={'config
 api.add_resource(RightsApi, '/rights', resource_class_kwargs={'config': config})
 api.add_resource(PersonApi, '/person', resource_class_kwargs={'config': config})
 api.add_resource(OrganizationApi, '/organization', resource_class_kwargs={'config': config})
+api.add_resource(StatusApi, '/status', resource_class_kwargs={'config': config})
 
 logger.info('Starting Rights API')
