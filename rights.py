@@ -14,6 +14,7 @@ from datetime import datetime
 import json
 import logging
 import psycopg2
+import uuid
 from flask import request, jsonify
 from flask_restful import Resource
 
@@ -689,6 +690,15 @@ def test_db(conf, log_header):
                 'msg': 'API is ready'}
 
 
+def get_log_header(method):
+    """Get log header string"""
+    trace_id = request.headers.get('X-B3-TraceId')
+    if trace_id:
+        return '[{} {},{}] '.format(method, trace_id, uuid.uuid4())
+
+    return '[{}] '.format(method)
+
+
 class SetRightApi(Resource):
     """SetRight API class for Flask"""
     def __init__(self, config):
@@ -696,7 +706,7 @@ class SetRightApi(Resource):
 
     def post(self):
         """POST method for changing or adding right"""
-        log_header = '[SetRight:post] '
+        log_header = get_log_header('SetRight:post')
         json_data = request.get_json(force=True)
         client_dn = request.headers.get('X-Ssl-Client-S-Dn')
 
@@ -724,7 +734,7 @@ class RevokeRightApi(Resource):
 
     def post(self):
         """POST method for revoking right"""
-        log_header = '[RevokeRight:post] '
+        log_header = get_log_header('RevokeRight:post')
         json_data = request.get_json(force=True)
         client_dn = request.headers.get('X-Ssl-Client-S-Dn')
 
@@ -752,7 +762,7 @@ class RightsApi(Resource):
 
     def post(self):
         """POST method for searching for rights"""
-        log_header = '[Rights:post] '
+        log_header = get_log_header('Rights:post')
         json_data = request.get_json(force=True)
         client_dn = request.headers.get('X-Ssl-Client-S-Dn')
 
@@ -781,7 +791,7 @@ class PersonApi(Resource):
 
     def post(self):
         """POST method form changing or adding person"""
-        log_header = '[Person:post] '
+        log_header = get_log_header('Person:post')
         json_data = request.get_json(force=True)
         client_dn = request.headers.get('X-Ssl-Client-S-Dn')
 
@@ -809,7 +819,7 @@ class OrganizationApi(Resource):
 
     def post(self):
         """POST method for changing or adding organization"""
-        log_header = '[Organization:post] '
+        log_header = get_log_header('Organization:post')
         json_data = request.get_json(force=True)
         client_dn = request.headers.get('X-Ssl-Client-S-Dn')
 
@@ -837,7 +847,7 @@ class StatusApi(Resource):
 
     def get(self):
         """GET method"""
-        log_header = '[Status:get] '
+        log_header = get_log_header('Status:get')
         LOGGER.info('%sIncoming status request', log_header)
 
         try:
