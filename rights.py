@@ -14,6 +14,7 @@ from datetime import datetime
 import json
 import logging
 import psycopg2
+import uuid
 from flask import request, jsonify
 from flask_restful import Resource
 
@@ -56,12 +57,13 @@ def set_person(cur, code, first_name, last_name):
                 returning id""",
             {'code': code, 'first_name': first_name, 'last_name': last_name})
         return cur.fetchone()[0]
-    if current_first_name != first_name or current_last_name != last_name:
+    if (first_name is not None and current_first_name != first_name) \
+            or (last_name is not None and current_last_name != last_name):
         cur.execute(
             """
                 update rights.person
-                set first_name=%(first_name)s, last_name=%(last_name)s,
-                    last_modified=current_timestamp
+                set first_name=COALESCE(%(first_name)s, first_name),
+                    last_name=COALESCE(%(last_name)s, last_name)
                 where id=%(id)s""",
             {'first_name': first_name, 'last_name': last_name, 'id': current_id})
     return current_id
@@ -90,11 +92,11 @@ def set_organization(cur, code, name):
                 returning id""",
             {'code': code, 'name': name})
         return cur.fetchone()[0]
-    if current_name != name:
+    if name is not None and current_name != name:
         cur.execute(
             """
                 update rights.organization
-                set name=%(name)s, last_modified=current_timestamp
+                set name=%(name)s
                 where id=%(id)s""",
             {'name': name, 'id': current_id})
     return current_id
@@ -106,11 +108,10 @@ def revoke_right(cur, person_id, organization_id, right_type):
         """
             update rights.right
             set
-                valid_from=least(valid_from, current_timestamp),
-                valid_to=current_timestamp, last_modified=current_timestamp
+                revoked=true
             where person_id=%(person_id)s and organization_id=%(organization_id)s
                 and right_type=%(right_type)s
-                and COALESCE(valid_to, current_timestamp + interval '1 day')>current_timestamp""",
+                and not revoked""",
         {'person_id': person_id, 'organization_id': organization_id, 'right_type': right_type})
     return cur.rowcount
 
@@ -137,7 +138,7 @@ def get_search_rights_sql(only_valid, persons, organizations, rights):
     """Get SQL string for search right query"""
     sql_what = """
         select p.code, p.first_name, p.last_name, o.code, o.name,
-            r.right_type, r.valid_from, r.valid_to"""
+            r.right_type, r.valid_from, r.valid_to, r.revoked"""
     sql_cnt = """
         select count(1)"""
     sql_from = """
@@ -148,6 +149,7 @@ def get_search_rights_sql(only_valid, persons, organizations, rights):
         where true"""
     if only_valid:
         sql_where += """
+            and not r.revoked
             and r.valid_from<=current_timestamp
             and COALESCE(valid_to, current_timestamp + interval '1 day')>current_timestamp"""
     if persons:
@@ -193,7 +195,9 @@ def search_rights(cur, **kwargs):
         rights.append({
             'person': {'code': rec[0], 'first_name': rec[1], 'last_name': rec[2]},
             'organization': {'code': rec[3], 'name': rec[4]},
-            'right': {'right_type': rec[5], 'valid_from': valid_from, 'valid_to': valid_to}})
+            'right': {
+                'right_type': rec[5], 'valid_from': valid_from, 'valid_to': valid_to,
+                'revoked': rec[8]}})
 
     LOGGER.debug('SQL total: %s', cur.mogrify(sql_total, params).decode('utf-8'))
     cur.execute(sql_total, params)
@@ -262,7 +266,7 @@ def check_required_dict_item(dict_name, item_name, json_data, log_header):
 
     Returns error message or None
     """
-    if not json_data.get(dict_name).get(item_name):
+    if not json_data.get(dict_name) or not json_data.get(dict_name).get(item_name):
         LOGGER.warning(
             '%sMISSING_PARAMETER: Missing parameter "%s->%s" '
             '(Request: %s)', log_header, dict_name, item_name, json_data)
@@ -646,6 +650,55 @@ def process_set_organization(conf, json_data, log_header):
     return {'http_status': 200, 'code': 'OK', 'msg': 'Organization updated'}
 
 
+def check_client(config, client_dn):
+    """Check if client dn is in whitelist"""
+    # If config is None then all clients are not allowed
+    if config is None:
+        return False
+    if config.get('allow_all', False) is True:
+        return True
+
+    allowed = config.get('allowed')
+    if client_dn is None or not isinstance(allowed, list):
+        return False
+
+    if client_dn in allowed:
+        return True
+
+    return False
+
+
+def incorrect_client(client_dn, log_header):
+    """Return error response when client is not allowed"""
+    LOGGER.error('%sFORBIDDEN: Client certificate is not allowed: %s', log_header, client_dn)
+    return make_response({
+        'http_status': 403, 'code': 'FORBIDDEN',
+        'msg': 'Client certificate is not allowed: {}'.format(client_dn)}, log_header)
+
+
+def test_db(conf, log_header):
+    """Add new X-Road subsystem to Central Server"""
+    conf_error = validate_config(conf, log_header)
+    if conf_error:
+        return conf_error
+
+    with get_db_connection(conf) as conn:
+        with conn.cursor() as cur:
+            cur.execute("""select count(1) from rights."right";""")
+            return {
+                'http_status': 200, 'code': 'OK',
+                'msg': 'API is ready'}
+
+
+def get_log_header(method):
+    """Get log header string"""
+    trace_id = request.headers.get('X-B3-TraceId')
+    if trace_id:
+        return '[{} {},{}] '.format(method, trace_id, uuid.uuid4())
+
+    return '[{}] '.format(method)
+
+
 class SetRightApi(Resource):
     """SetRight API class for Flask"""
     def __init__(self, config):
@@ -653,10 +706,15 @@ class SetRightApi(Resource):
 
     def post(self):
         """POST method for changing or adding right"""
-        log_header = '[SetRight:post] '
+        log_header = get_log_header('SetRight:post')
         json_data = request.get_json(force=True)
+        client_dn = request.headers.get('X-Ssl-Client-S-Dn')
 
         LOGGER.info('%sIncoming request: %s', log_header, json_data)
+        LOGGER.info('%sClient DN: %s', log_header, client_dn)
+
+        if not check_client(self.config, client_dn):
+            return incorrect_client(client_dn, log_header)
 
         try:
             response = process_set_right(self.config, json_data, log_header)
@@ -676,10 +734,15 @@ class RevokeRightApi(Resource):
 
     def post(self):
         """POST method for revoking right"""
-        log_header = '[RevokeRight:post] '
+        log_header = get_log_header('RevokeRight:post')
         json_data = request.get_json(force=True)
+        client_dn = request.headers.get('X-Ssl-Client-S-Dn')
 
         LOGGER.info('%sIncoming request: %s', log_header, json_data)
+        LOGGER.info('%sClient DN: %s', log_header, client_dn)
+
+        if not check_client(self.config, client_dn):
+            return incorrect_client(client_dn, log_header)
 
         try:
             response = process_revoke_right(self.config, json_data, log_header)
@@ -699,10 +762,15 @@ class RightsApi(Resource):
 
     def post(self):
         """POST method for searching for rights"""
-        log_header = '[Rights:post] '
+        log_header = get_log_header('Rights:post')
         json_data = request.get_json(force=True)
+        client_dn = request.headers.get('X-Ssl-Client-S-Dn')
 
         LOGGER.info('%sIncoming request: %s', log_header, json_data)
+        LOGGER.info('%sClient DN: %s', log_header, client_dn)
+
+        if not check_client(self.config, client_dn):
+            return incorrect_client(client_dn, log_header)
 
         try:
             response = process_search_rights(self.config, json_data, log_header)
@@ -712,6 +780,7 @@ class RightsApi(Resource):
                 'http_status': 500, 'code': 'DB_ERROR',
                 'msg': 'Unclassified database error'}
 
+        # Logging responses (that may be big) only on DEBUG level
         return make_response(response, log_header, log_level='debug')
 
 
@@ -722,10 +791,15 @@ class PersonApi(Resource):
 
     def post(self):
         """POST method form changing or adding person"""
-        log_header = '[Person:post] '
+        log_header = get_log_header('Person:post')
         json_data = request.get_json(force=True)
+        client_dn = request.headers.get('X-Ssl-Client-S-Dn')
 
         LOGGER.info('%sIncoming request: %s', log_header, json_data)
+        LOGGER.info('%sClient DN: %s', log_header, client_dn)
+
+        if not check_client(self.config, client_dn):
+            return incorrect_client(client_dn, log_header)
 
         try:
             response = process_set_person(self.config, json_data, log_header)
@@ -745,13 +819,39 @@ class OrganizationApi(Resource):
 
     def post(self):
         """POST method for changing or adding organization"""
-        log_header = '[Organization:post] '
+        log_header = get_log_header('Organization:post')
         json_data = request.get_json(force=True)
+        client_dn = request.headers.get('X-Ssl-Client-S-Dn')
 
         LOGGER.info('%sIncoming request: %s', log_header, json_data)
+        LOGGER.info('%sClient DN: %s', log_header, client_dn)
+
+        if not check_client(self.config, client_dn):
+            return incorrect_client(client_dn, log_header)
 
         try:
             response = process_set_organization(self.config, json_data, log_header)
+        except psycopg2.Error as err:
+            LOGGER.error('%sDB_ERROR: Unclassified database error: %s', log_header, err)
+            response = {
+                'http_status': 500, 'code': 'DB_ERROR',
+                'msg': 'Unclassified database error'}
+
+        return make_response(response, log_header)
+
+
+class StatusApi(Resource):
+    """Status API class for Flask"""
+    def __init__(self, config):
+        self.config = config
+
+    def get(self):
+        """GET method"""
+        log_header = get_log_header('Status:get')
+        LOGGER.info('%sIncoming status request', log_header)
+
+        try:
+            response = test_db(self.config, log_header)
         except psycopg2.Error as err:
             LOGGER.error('%sDB_ERROR: Unclassified database error: %s', log_header, err)
             response = {

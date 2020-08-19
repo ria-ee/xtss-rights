@@ -20,7 +20,7 @@ paths:
         - admin
       summary: Set right
       operationId: setRight
-      description: Add or update person right
+      description: Add or update person right. Undefined/missing organization or person names will not overwrite names in database, but empty names will.
       responses:
         '201':
           description: Right added
@@ -42,9 +42,19 @@ paths:
                 missingParam:
                   summary: Required parameter is missing
                   value: {"code": "MISSING_PARAMETER", "msg": "Missing parameter \"person->code\""}
-                invalidClass:
+                invalidParam:
                   summary: Invalid parameter
                   value: {"code": "INVALID_PARAMETER", "msg": Timestamps must be in the future"}
+        '403':
+          description: Client certificate is not allowed
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Response403'
+              examples:
+                certForbidden:
+                  summary: Client certificate is not allowed
+                  value: {"code": "FORBIDDEN", "msg": "Client certificate is not allowed"}
         '500':
           description: Server side error
           content:
@@ -61,7 +71,7 @@ paths:
             schema:
               $ref: '#/components/schemas/SetRight'
             examples:
-              member:
+              req:
                 summary: Example request parameters
                 value: {
   "organization": {
@@ -77,6 +87,24 @@ paths:
     "right_type": "RIGHT1",
     "valid_from": "2019-09-01T00:00:00",
     "valid_to": "2019-09-10T00:00:00"
+  }
+}
+              reqMicro:
+                summary: Microsecond precission
+                value: {
+  "organization": {
+    "code": "00000000",
+    "name": "Org 0"
+  },
+  "person": {
+    "code": "12345678901",
+    "first_name": "Firstname",
+    "last_name": "Lastname"
+  },
+  "right": {
+    "right_type": "RIGHT1",
+    "valid_from": "2019-09-01T00:00:00.000000",
+    "valid_to": "2019-09-10T00:00:00.000000"
   }
 }
         description: New Right to add
@@ -98,7 +126,7 @@ paths:
                 revoked:
                   summary: Right revoked
                   value: {"code":"CREATED","msg":"New right added"}
-                not_found:
+                notFound:
                   summary: Right was not found
                   value: {"code":"CREATED","msg":"No right was found"}
         '400':
@@ -111,6 +139,16 @@ paths:
                 missingParam:
                   summary: Required parameter is missing
                   value: {"code": "MISSING_PARAMETER", "msg": "Missing parameter \"right_type\""}
+        '403':
+          description: Client certificate is not allowed
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Response403'
+              examples:
+                certForbidden:
+                  summary: Client certificate is not allowed
+                  value: {"code": "FORBIDDEN", "msg": "Client certificate is not allowed"}
         '500':
           description: Server side error
           content:
@@ -127,7 +165,7 @@ paths:
             schema:
               $ref: '#/components/schemas/RevokeRight'
             examples:
-              member:
+              req:
                 summary: Example request parameters
                 value: {
   "organization_code": "00000000",
@@ -153,7 +191,17 @@ paths:
               examples:
                 found:
                   summary: Rights found
-                  value: {"code":"OK","msg":"Found 1 rights","response":{"limit":5,"offset":0,"total":1,"rights":[{"organization":{"code":"00000000","name":"Org 0"},"person":{"code":"12345678901","first_name":"Firstname","last_name":"Lastname"},"right":{"right_type":"RIGHT1","valid_from":"2019-08-29T13:11:34.432664","valid_to":"2019-09-10T00:00:00.000000"}}]}}
+                  value: {"code":"OK","msg":"Found 1 rights","response":{"limit":5,"offset":0,"total":1,"rights":[{"organization":{"code":"00000000","name":"Org 0"},"person":{"code":"12345678901","first_name":"Firstname","last_name":"Lastname"},"right":{"right_type":"RIGHT1","valid_from":"2019-08-29T13:11:34.432664","valid_to":"2019-09-10T00:00:00.000000","revoked":false}}]}}
+        '403':
+          description: Client certificate is not allowed
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Response403'
+              examples:
+                certForbidden:
+                  summary: Client certificate is not allowed
+                  value: {"code": "FORBIDDEN", "msg": "Client certificate is not allowed"}
         '500':
           description: Server side error
           content:
@@ -170,7 +218,7 @@ paths:
             schema:
               $ref: '#/components/schemas/Rights'
             examples:
-              member:
+              req:
                 summary: Example request parameters
                 value: {
   "organizations": ["00000000", "00000001"],
@@ -210,6 +258,16 @@ paths:
                 missingParam:
                   summary: Required parameter is missing
                   value: {"code": "MISSING_PARAMETER", "msg": "Missing parameter \"code\""}
+        '403':
+          description: Client certificate is not allowed
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Response403'
+              examples:
+                certForbidden:
+                  summary: Client certificate is not allowed
+                  value: {"code": "FORBIDDEN", "msg": "Client certificate is not allowed"}
         '500':
           description: Server side error
           content:
@@ -226,7 +284,7 @@ paths:
             schema:
               $ref: '#/components/schemas/SetPerson'
             examples:
-              member:
+              req:
                 summary: Example request parameters
                 value: {
   "code": "12345678901",
@@ -263,6 +321,16 @@ paths:
                 missingParam:
                   summary: Required parameter is missing
                   value: {"code": "MISSING_PARAMETER", "msg": "Missing parameter \"code\""}
+        '403':
+          description: Client certificate is not allowed
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Response403'
+              examples:
+                certForbidden:
+                  summary: Client certificate is not allowed
+                  value: {"code": "FORBIDDEN", "msg": "Client certificate is not allowed"}
         '500':
           description: Server side error
           content:
@@ -279,7 +347,7 @@ paths:
             schema:
               $ref: '#/components/schemas/SetOrganization'
             examples:
-              member:
+              req:
                 summary: Example request parameters
                 value: {
   "code": "00000000",
@@ -322,6 +390,21 @@ components:
         valid_to:
           type: string
           example: "2019-09-01T00:00:00"
+    RightResp:
+      type: object
+      properties:
+        right_type:
+          type: string
+          example: RIGHT1
+        valid_from:
+          type: string
+          example: "2019-09-01T00:00:00.000000"
+        valid_to:
+          type: string
+          example: "2019-09-01T00:00:00.000000"
+        revoked:
+          type: boolean
+          example: false
     SetRight:
       type: object
       properties:
@@ -446,7 +529,7 @@ components:
                   person:
                     $ref: "#/components/schemas/Person"
                   right:
-                    $ref: "#/components/schemas/Right"
+                    $ref: "#/components/schemas/RightResp"
             limit:
               type: integer
               example: 100
@@ -500,6 +583,17 @@ components:
         msg:
           type: string
           example: "Missing parameter \"code\""
+    Response403:
+      type: object
+      properties:
+        code:
+          type: string
+          enum:
+            - FORBIDDEN
+          example: FORBIDDEN
+        msg:
+          type: string
+          example: Client certificate is not allowed
     Response500:
       type: object
       properties:

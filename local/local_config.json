@@ -1,11 +1,8 @@
 {
-  "db_host": "localhost",
+  "db_host": "db",
   "db_port": "5432",
   "db_db": "postgres",
   "db_user": "postgres",
   "db_pass": "password",
-  "allow_all": false,
-  "allowed": [
-    "OU=xtss,O=RIA,C=EE"
-  ]
+  "allow_all": true
 }
