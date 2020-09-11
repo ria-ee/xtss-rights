@@ -13,8 +13,8 @@ This module allows:
 from datetime import datetime
 import json
 import logging
-import psycopg2
 import uuid
+import psycopg2
 from flask import request, jsonify
 from flask_restful import Resource
 
