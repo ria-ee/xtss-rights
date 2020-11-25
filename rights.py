@@ -13,8 +13,8 @@ This module allows:
 from datetime import datetime
 import json
 import logging
-import psycopg2
 import uuid
+import psycopg2
 from flask import request, jsonify
 from flask_restful import Resource
 
@@ -30,7 +30,7 @@ TIME_FORMAT_DB = '%Y-%m-%d %H:%M:%S'
 def get_db_connection(conf):
     """Get connection object for Central Server database"""
     return psycopg2.connect(
-        'host={} port={} dbname={} user={} password={}'.format(
+        'host={} port={} dbname={} user={} password={} connect_timeout=5'.format(
             conf['db_host'], conf['db_port'], conf['db_db'], conf['db_user'], conf['db_pass']))
 
 

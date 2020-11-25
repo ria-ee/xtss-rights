@@ -1,5 +1,9 @@
 #!/usr/bin/env python3
 
+"""This is a Flask server configuration for Rights service."""
+
+__version__ = '1.0.1'
+
 import logging
 from flask import Flask
 from flask_restful import Api
@@ -30,4 +34,4 @@ api.add_resource(PersonApi, '/person', resource_class_kwargs={'config': config})
 api.add_resource(OrganizationApi, '/organization', resource_class_kwargs={'config': config})
 api.add_resource(StatusApi, '/status', resource_class_kwargs={'config': config})
 
-logger.info('Starting Rights API')
+logger.info('Starting Rights API v{}'.format(__version__))
