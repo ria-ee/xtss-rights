@@ -2,7 +2,7 @@
 
 """This is a Flask server configuration for Rights service."""
 
-__version__ = '1.0.1'
+__version__ = '1.0.2'
 
 import logging
 from flask import Flask

@@ -8,6 +8,7 @@ This module allows:
     * searching for rights
     * updating/creating person
     * updating/creating organization
+    * checking API status
 """
 
 from datetime import datetime
@@ -22,6 +23,7 @@ LOGGER = logging.getLogger('rights')
 DEFAULT_ONLY_VALID = True
 DEFAULT_LIMIT = 100
 DEFAULT_OFFSET = 0
+DEFAULT_CONNECT_TIMEOUT = 5
 TIME_FORMAT = '%Y-%m-%dT%H:%M:%S.%f'
 TIME_FORMAT_SEC = '%Y-%m-%dT%H:%M:%S'
 TIME_FORMAT_DB = '%Y-%m-%d %H:%M:%S'
@@ -29,9 +31,13 @@ TIME_FORMAT_DB = '%Y-%m-%d %H:%M:%S'
 
 def get_db_connection(conf):
     """Get connection object for Central Server database"""
+    connect_timeout = DEFAULT_CONNECT_TIMEOUT
+    if 'db_connect_timeout' in conf:
+        connect_timeout = conf['db_connect_timeout']
     return psycopg2.connect(
-        'host={} port={} dbname={} user={} password={} connect_timeout=5'.format(
-            conf['db_host'], conf['db_port'], conf['db_db'], conf['db_user'], conf['db_pass']))
+        'host={} port={} dbname={} user={} password={} connect_timeout={}'.format(
+            conf['db_host'], conf['db_port'], conf['db_db'],
+            conf['db_user'], conf['db_pass'], connect_timeout))
 
 
 def get_person(cur, code):
