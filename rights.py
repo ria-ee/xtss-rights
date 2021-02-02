@@ -345,12 +345,17 @@ def parse_timestamp(timestamp, json_data, log_header):
                 'msg': 'Unrecognized timestamp: "{}"'.format(timestamp)}
 
 
+def get_datetime_now():
+    """A wrapper for datetime.now() to simplify unit testing"""
+    return datetime.now()
+
+
 def check_timestamp(timestamp, json_data, log_header):
     """Checks if timestamp is valid (in the future)
 
     Returns error message or None
     """
-    if isinstance(timestamp, datetime) and timestamp < datetime.now():
+    if isinstance(timestamp, datetime) and timestamp < get_datetime_now():
         LOGGER.warning(
             '%sINVALID_PARAMETER: timestamps must be in the future '
             '(Request: %s)', log_header, json_data)
@@ -414,15 +419,15 @@ def validate_set_right_request(json_data, log_header):
     Returns tuple of: kwargs, error message
     """
     # Check required parameters
-    request_error = check_required_dict_item('person', 'code', json_data, log_header)
-    if request_error:
-        return None, request_error
-    request_error = check_required_dict_item('organization', 'code', json_data, log_header)
-    if request_error:
-        return None, request_error
-    request_error = check_required_dict_item('right', 'right_type', json_data, log_header)
-    if request_error:
-        return None, request_error
+    req_params = [
+        ['person', 'code'],
+        ['organization', 'code'],
+        ['right', 'right_type']
+    ]
+    for param in req_params:
+        request_error = check_required_dict_item(param[0], param[1], json_data, log_header)
+        if request_error:
+            return None, request_error
 
     kwargs = {
         'person': get_dict_parameter('person', ['code', 'first_name', 'last_name'], json_data),
@@ -486,19 +491,16 @@ def validate_revoke_right_request(json_data, log_header):
     """
     kwargs = {}
 
-    # Required parameters:
-    kwargs['person_code'], param_error = get_required_parameter(
-        'person_code', json_data, log_header)
-    if param_error:
-        return None, param_error
-    kwargs['organization_code'], param_error = get_required_parameter(
-        'organization_code', json_data, log_header)
-    if param_error:
-        return None, param_error
-    kwargs['right_type'], param_error = get_required_parameter(
-        'right_type', json_data, log_header)
-    if param_error:
-        return None, param_error
+    # Check required parameters
+    req_params = [
+        'person_code',
+        'organization_code',
+        'right_type'
+    ]
+    for param in req_params:
+        kwargs[param], param_error = get_required_parameter(param, json_data, log_header)
+        if param_error:
+            return None, param_error
 
     return kwargs, None
 
@@ -568,7 +570,6 @@ def process_search_rights(conf, json_data, log_header):
         with conn.cursor() as cur:
             result = search_rights(
                 cur, **kwargs)
-        conn.commit()
 
     LOGGER.info(
         '%sFound %s rights, returning %s rights with offset %s',
@@ -683,7 +684,7 @@ def incorrect_client(client_dn, log_header):
 
 
 def test_db(conf, log_header):
-    """Add new X-Road subsystem to Central Server"""
+    """Test DB connection"""
     conf_error = validate_config(conf, log_header)
     if conf_error:
         return conf_error
