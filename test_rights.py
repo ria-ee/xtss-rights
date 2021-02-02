@@ -204,7 +204,6 @@ class MainTestCase(unittest.TestCase):
                 'valid_from': '2020-01-01', 'valid_to': '2020-11-01'})
 
     def test_get_search_rights_sql(self):
-        # self.maxDiff = None
         self.assertEqual(
             ('\n        select p.code, p.first_name, p.last_name, o.code, o.name,\n'
              '            r.right_type, r.valid_from, r.valid_to, r.revoked\n'
