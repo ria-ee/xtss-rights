@@ -4,6 +4,7 @@
   "db_db": "postgres",
   "db_user": "postgres",
   "db_pass": "password",
+  "db_connect_timeout": 5,
   "allow_all": false,
   "allowed": [
     "OU=xtss,O=RIA,C=EE"
