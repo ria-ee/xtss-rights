@@ -1,0 +1,7 @@
+databaseChangeLog:
+- include:
+    file: 20210524_1_initial.yaml
+    relativeToChangelogFile: true
+- include:
+    file: 20210524_2_triggers.yaml
+    relativeToChangelogFile: true

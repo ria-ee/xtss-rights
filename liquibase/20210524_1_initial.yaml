@@ -1,0 +1,223 @@
+databaseChangeLog:
+- changeSet:
+    id: 1621842711854-1
+    author: Vitali Stupin
+    changes:
+    - sql:
+      comment: Create schema
+      dbms: postgresql
+      sql: CREATE SCHEMA IF NOT EXISTS rights;
+- changeSet:
+    id: 1621842711854-2
+    author: Vitali Stupin
+    changes:
+    - createTable:
+        columns:
+        - column:
+            autoIncrement: true
+            constraints:
+              nullable: false
+              primaryKey: true
+              primaryKeyName: change_log_pkey
+            name: id
+            type: BIGINT
+        - column:
+            constraints:
+              nullable: false
+            name: table_name
+            type: VARCHAR
+        - column:
+            constraints:
+              nullable: false
+            name: record_id
+            type: BIGINT
+        - column:
+            constraints:
+              nullable: false
+            name: operation
+            type: VARCHAR
+        - column:
+            name: old_value
+            type: TEXT
+        - column:
+            name: new_value
+            type: TEXT
+        - column:
+            defaultValueComputed: now()
+            name: created
+            type: TIMESTAMP WITHOUT TIME ZONE
+        tableName: change_log
+        schemaName: rights
+- changeSet:
+    id: 1621842711854-3
+    author: Vitali Stupin
+    changes:
+    - createTable:
+        columns:
+        - column:
+            autoIncrement: true
+            constraints:
+              nullable: false
+              primaryKey: true
+              primaryKeyName: right_pkey
+            name: id
+            type: BIGINT
+        - column:
+            constraints:
+              nullable: false
+            name: person_id
+            type: BIGINT
+        - column:
+            constraints:
+              nullable: false
+            name: organization_id
+            type: BIGINT
+        - column:
+            constraints:
+              nullable: false
+            name: right_type
+            type: VARCHAR
+        - column:
+            constraints:
+              nullable: false
+            defaultValueComputed: now()
+            name: valid_from
+            type: TIMESTAMP WITHOUT TIME ZONE
+        - column:
+            name: valid_to
+            type: TIMESTAMP WITHOUT TIME ZONE
+        - column:
+            constraints:
+              nullable: false
+            defaultValueBoolean: false
+            name: revoked
+            type: BOOLEAN
+        - column:
+            defaultValueComputed: now()
+            name: created
+            type: TIMESTAMP WITHOUT TIME ZONE
+        - column:
+            defaultValueComputed: now()
+            name: last_modified
+            type: TIMESTAMP WITHOUT TIME ZONE
+        tableName: right
+        schemaName: rights
+- changeSet:
+    id: 1621842711854-4
+    author: Vitali Stupin
+    changes:
+    - createTable:
+        columns:
+        - column:
+            autoIncrement: true
+            constraints:
+              nullable: false
+              primaryKey: true
+              primaryKeyName: organization_pkey
+            name: id
+            type: BIGINT
+        - column:
+            constraints:
+              nullable: false
+            name: code
+            type: VARCHAR
+        - column:
+            name: name
+            type: VARCHAR
+        - column:
+            defaultValueComputed: now()
+            name: created
+            type: TIMESTAMP WITHOUT TIME ZONE
+        - column:
+            defaultValueComputed: now()
+            name: last_modified
+            type: TIMESTAMP WITHOUT TIME ZONE
+        tableName: organization
+        schemaName: rights
+- changeSet:
+    id: 1621842711854-5
+    author: Vitali Stupin
+    changes:
+    - createTable:
+        columns:
+        - column:
+            autoIncrement: true
+            constraints:
+              nullable: false
+              primaryKey: true
+              primaryKeyName: person_pkey
+            name: id
+            type: BIGINT
+        - column:
+            constraints:
+              nullable: false
+            name: code
+            type: VARCHAR
+        - column:
+            name: first_name
+            type: VARCHAR
+        - column:
+            name: last_name
+            type: VARCHAR
+        - column:
+            defaultValueComputed: now()
+            name: created
+            type: TIMESTAMP WITHOUT TIME ZONE
+        - column:
+            defaultValueComputed: now()
+            name: last_modified
+            type: TIMESTAMP WITHOUT TIME ZONE
+        tableName: person
+        schemaName: rights
+- changeSet:
+    id: 1621842711854-6
+    author: Vitali Stupin
+    changes:
+    - addUniqueConstraint:
+        columnNames: code
+        constraintName: organization_code_key
+        tableName: organization
+        schemaName: rights
+- changeSet:
+    id: 1621842711854-7
+    author: Vitali Stupin
+    changes:
+    - addForeignKeyConstraint:
+        baseColumnNames: organization_id
+        baseTableName: right
+        baseTableSchemaName: rights
+        constraintName: rights_organization_id_fkey
+        deferrable: false
+        initiallyDeferred: false
+        onDelete: CASCADE
+        onUpdate: CASCADE
+        referencedColumnNames: id
+        referencedTableName: organization
+        referencedTableSchemaName: rights
+        validate: true
+- changeSet:
+    id: 1621842711854-8
+    author: Vitali Stupin
+    changes:
+    - addUniqueConstraint:
+        columnNames: code
+        constraintName: person_code_key
+        tableName: person
+        schemaName: rights
+- changeSet:
+    id: 1621842711854-9
+    author: Vitali Stupin
+    changes:
+    - addForeignKeyConstraint:
+        baseColumnNames: person_id
+        baseTableName: right
+        baseTableSchemaName: rights
+        constraintName: rights_person_id_fkey
+        deferrable: false
+        initiallyDeferred: false
+        onDelete: CASCADE
+        onUpdate: CASCADE
+        referencedColumnNames: id
+        referencedTableName: person
+        referencedTableSchemaName: rights
+        validate: true
