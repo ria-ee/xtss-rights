@@ -9,7 +9,8 @@ docker-compose up -d
 
 # Giving DB some time to start before liquibase step
 for i in {1..30}; do
-  (echo > /dev/tcp/localhost/5432) >/dev/null 2>&1 && break
+  # NB! Checking when db start listening on non-loopback IP - "db"
+  docker exec local_db_1 pg_isready -h db && break
   sleep 1
 done
 

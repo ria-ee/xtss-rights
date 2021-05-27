@@ -1,3 +1,5 @@
+-- Making schema liquibase compatible and using "identity" instead of sequences.
+
 ALTER TABLE rights.change_log
     ALTER COLUMN id DROP DEFAULT;
 DROP SEQUENCE rights.change_log_id_seq;

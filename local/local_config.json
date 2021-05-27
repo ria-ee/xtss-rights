@@ -1,8 +1,8 @@
 {
   "db_host": "db",
   "db_port": "5432",
-  "db_db": "postgres",
-  "db_user": "postgres",
+  "db_db": "db_rights",
+  "db_user": "rights_app",
   "db_pass": "password",
   "allow_all": true
 }
