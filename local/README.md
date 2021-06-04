@@ -17,13 +17,15 @@ Remove service by running:
 ## Running on other platforms
 Create a directory `local/files`.
 
-Copy files `db.sql requirements.txt rights.py server.py` to `local/files` directory.
+Copy files `requirements.txt rights.py server.py` to `local/files` directory.
 
 Build and run service:
 ```
 docker-compose build
 docker-compose up -d
 ```
+
+Run liquibase using command from `up.sh` as an example.
 
 Remove service by running:
 ```
