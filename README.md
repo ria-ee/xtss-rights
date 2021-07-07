@@ -28,7 +28,7 @@ sudo mkdir -p /opt/xtss-rights
 sudo chown -R xtss-rights:xtss-rights /opt/xtss-rights
 ```
 
-Copy application files `rights.py`, `server.py`, `db.sql`, `db_user.sql` to directory `/opt/xtss-rights`.
+Copy application files `rights.py`, `server.py` to directory `/opt/xtss-rights`.
 
 Create a directory for logs:
 ```bash
@@ -60,31 +60,6 @@ Configuration parameters:
 * `allow_all` - if "true" then disable certificate DN check, default value: "false";
 * `allowed` - list of allowed certificate DN's.
 
-## DB initialization using SQL scripts
-
-Create database:
-```bash
-sudo -u postgres createdb db_rights
-```
-
-Create application user "rights_app" and make sure in can connect to DB
-```bash
-sudo -u postgres psql -c "CREATE ROLE rights_app WITH LOGIN" db_rights
-sudo -u postgres psql -c "ALTER USER rights_app WITH PASSWORD '<PASSWORD>'" db_rights
-sudo -u postgres psql -c "GRANT CONNECT ON DATABASE db_rights TO rights_app" db_rights
-```
-
-Run DB initialization SQL:
-```bash
-sudo -u postgres psql -f db.sql db_rights
-sudo -u postgres psql -f db_user.sql db_rights
-```
-
-Run all additional DB patches (`db_patch_*.sql`) in the correct order. For example:
-```bash
-sudo -u postgres psql -f db_patch_1_lb.sql db_rights
-```
-
 ## DB initialization using Liquibase
 
 Create database:
@@ -105,21 +80,6 @@ Apply liquibase changes by running the following command in project folder (usin
 ```
 docker run --rm -v $(pwd)/liquibase:/liquibase/changelog liquibase/liquibase --defaultsFile=/liquibase/changelog/liquibase.properties update
 ```
-
-# DB migration to liquibase
-
-If you have existing Rights database created with `db*.sql` scripts and you want to start using liquibase then you need to perform the following steps:
-
-1) Create backup for your data before proceeding!
-
-2) Make sure you have applied all `db_patch_*.sql` changes in your database.
-
-3) Create liquibase configurations file `liquibase/liquibase.properties` using example file [liquibase/example_liquibase.properties](liquibase/example_liquibase.properties).
-
-4) Mark all liquibase changes as applied by running the following command in project folder (using liquibase docker image in this example):
-   ```
-   docker run --rm -v $(pwd)/liquibase:/liquibase/changelog liquibase/liquibase --defaultsFile=/liquibase/changelog/liquibase.properties changelogSync
-   ```
 
 ## Configuring Systemd
 
