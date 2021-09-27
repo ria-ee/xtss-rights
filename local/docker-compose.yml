@@ -7,8 +7,9 @@ services:
   db:
     image: postgres
     volumes:
-      - ./files/db.sql:/docker-entrypoint-initdb.d/db.sql
+      - ./db_user_local.sql:/docker-entrypoint-initdb.d/db.sql
     ports:
       - "5432:5432"
     environment:
+      POSTGRES_DB: db_rights
       POSTGRES_PASSWORD: password
