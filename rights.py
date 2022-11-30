@@ -35,9 +35,9 @@ def get_db_connection(conf):
     if 'db_connect_timeout' in conf:
         connect_timeout = conf['db_connect_timeout']
     return psycopg2.connect(
-        'host={} port={} dbname={} user={} password={} connect_timeout={}'.format(
-            conf['db_host'], conf['db_port'], conf['db_db'],
-            conf['db_user'], conf['db_pass'], connect_timeout))
+        f"host={conf['db_host']} port={conf['db_port']} dbname={conf['db_db']} "
+        f"user={conf['db_user']} password={conf['db_pass']} connect_timeout={connect_timeout}"
+    )
 
 
 def get_person(cur, code):
@@ -229,7 +229,7 @@ def make_response(data, log_header, log_level='info'):
 def load_config(config_file):
     """Load configuration from JSON file"""
     try:
-        with open(config_file, 'r') as conf:
+        with open(config_file, 'r', encoding='utf-8') as conf:
             LOGGER.info('Configuration loaded from file "%s"', config_file)
             return json.load(conf)
     except IOError as err:
@@ -264,7 +264,7 @@ def get_required_parameter(name, json_data, log_header):
         '(Request: %s)', log_header, name, json_data)
     return None, {
         'http_status': 400, 'code': 'MISSING_PARAMETER',
-        'msg': 'Missing parameter "{}"'.format(name)}
+        'msg': f'Missing parameter "{name}"'}
 
 
 def check_required_dict_item(dict_name, item_name, json_data, log_header):
@@ -278,7 +278,7 @@ def check_required_dict_item(dict_name, item_name, json_data, log_header):
             '(Request: %s)', log_header, dict_name, item_name, json_data)
         return {
             'http_status': 400, 'code': 'MISSING_PARAMETER',
-            'msg': 'Missing parameter "{}->{}"'.format(dict_name, item_name)}
+            'msg': f'Missing parameter "{dict_name}->{item_name}"'}
 
     return None
 
@@ -342,7 +342,7 @@ def parse_timestamp(timestamp, json_data, log_header):
                 '(Request: %s)', log_header, timestamp, json_data)
             return None, {
                 'http_status': 400, 'code': 'INVALID_PARAMETER',
-                'msg': 'Unrecognized timestamp: "{}"'.format(timestamp)}
+                'msg': f'Unrecognized timestamp: "{timestamp}"'}
 
 
 def get_datetime_now():
@@ -577,7 +577,7 @@ def process_search_rights(conf, json_data, log_header):
 
     return {
         'http_status': 200, 'code': 'OK',
-        'msg': 'Found {} rights'.format(result['total']),
+        'msg': f"Found {result['total']} rights",
         'response': result}
 
 
@@ -680,7 +680,7 @@ def incorrect_client(client_dn, log_header):
     LOGGER.error('%sFORBIDDEN: Client certificate is not allowed: %s', log_header, client_dn)
     return make_response({
         'http_status': 403, 'code': 'FORBIDDEN',
-        'msg': 'Client certificate is not allowed: {}'.format(client_dn)}, log_header)
+        'msg': f'Client certificate is not allowed: {client_dn}'}, log_header)
 
 
 def test_db(conf, log_header):
@@ -701,9 +701,9 @@ def get_log_header(method):
     """Get log header string"""
     trace_id = request.headers.get('X-B3-TraceId')
     if trace_id:
-        return '[{} {},{}] '.format(method, trace_id, uuid.uuid4())
+        return f'[{method} {trace_id},{uuid.uuid4()}] '
 
-    return '[{}] '.format(method)
+    return f'[{method}] '
 
 
 class SetRightApi(Resource):
