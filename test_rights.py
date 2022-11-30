@@ -329,12 +329,12 @@ class MainTestCase(unittest.TestCase):
         # Valid json
         with patch('builtins.open', mock_open(read_data=json.dumps({'allow_all': True}))) as m:
             self.assertEqual({'allow_all': True}, rights.load_config('FILENAME'))
-            m.assert_called_once_with('FILENAME', 'r')
+            m.assert_called_once_with('FILENAME', 'r', encoding='utf-8')
         # Invalid json
         with patch('builtins.open', mock_open(read_data='NOT_JSON')) as m:
             with self.assertLogs(rights.LOGGER, level='INFO') as cm:
                 self.assertEqual(None, rights.load_config('FILENAME'))
-                m.assert_called_once_with('FILENAME', 'r')
+                m.assert_called_once_with('FILENAME', 'r', encoding='utf-8')
                 self.assertEqual([
                     'INFO:rights:Configuration loaded from file "FILENAME"',
                     'ERROR:rights:Invalid JSON configuration file "FILENAME": Expecting value: '
@@ -344,7 +344,7 @@ class MainTestCase(unittest.TestCase):
             m.side_effect = IOError
             with self.assertLogs(rights.LOGGER, level='INFO') as cm:
                 self.assertEqual(None, rights.load_config('FILENAME'))
-                m.assert_called_once_with('FILENAME', 'r')
+                m.assert_called_once_with('FILENAME', 'r', encoding='utf-8')
                 self.assertEqual([
                     'ERROR:rights:Cannot load configuration file "FILENAME": '], cm.output)
 

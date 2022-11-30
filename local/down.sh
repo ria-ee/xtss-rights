@@ -3,4 +3,4 @@
 set -e
 set -x
 
-docker-compose down
+docker compose down
