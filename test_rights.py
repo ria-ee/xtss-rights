@@ -42,7 +42,7 @@ class MainTestCase(unittest.TestCase):
         rights.get_db_connection(self.config)
         mock_pg_connect.assert_called_with(
             'host=localhost port=5432 dbname=postgres user=postgres password=password '
-            'connect_timeout=10')
+            'connect_timeout=10 target_session_attrs=read-write')
 
     @patch('psycopg2.connect')
     def test_get_db_connection_default_timeout(self, mock_pg_connect):
@@ -51,7 +51,7 @@ class MainTestCase(unittest.TestCase):
         rights.get_db_connection(my_config)
         mock_pg_connect.assert_called_with(
             'host=localhost port=5432 dbname=postgres user=postgres password=password '
-            'connect_timeout=5')
+            'connect_timeout=5 target_session_attrs=read-write')
 
     def test_get_person(self):
         cur = MagicMock()

@@ -52,7 +52,7 @@ pip install -r requirements.txt
 Create a configuration file `/opt/xtss-rights/config.json` using an example configuration file [example-config.json](example-config.json).
 
 Configuration parameters:
-* `db_host` - database address;
+* `db_host` - database address or comma separated list of addresses for client-side DB HA;
 * `db_port` - database port;
 * `db_db` - database name;
 * `db_user` - database user name;
