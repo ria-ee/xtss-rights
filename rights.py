@@ -36,7 +36,8 @@ def get_db_connection(conf):
         connect_timeout = conf['db_connect_timeout']
     return psycopg2.connect(
         f"host={conf['db_host']} port={conf['db_port']} dbname={conf['db_db']} "
-        f"user={conf['db_user']} password={conf['db_pass']} connect_timeout={connect_timeout}"
+        f"user={conf['db_user']} password={conf['db_pass']} "
+        f"connect_timeout={connect_timeout} target_session_attrs=read-write"
     )
 
 
