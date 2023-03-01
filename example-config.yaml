@@ -1,0 +1,28 @@
+---
+# Log to file instead of stdout if 'log_file' is set
+log_file: /var/log/xtss-rights/rights.log
+
+# Database address or comma separated list of addresses for client-side DB HA
+db_host: localhost
+
+# Database port
+db_port: 5432
+
+# Database name
+db_db: db_rights
+
+# Database username
+db_user: rights_app
+
+# Database user password
+db_pass: <PASSWORD>
+
+# Database connection timeout
+db_connect_timeout: 5
+
+# If "true" then disable certificate DN check, default value: "false"
+allow_all: false
+
+# List of allowed certificate DN's
+allowed:
+  - OU=XTSS,O=RIA,C=EE

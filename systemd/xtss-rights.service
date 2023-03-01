@@ -7,7 +7,7 @@ User=xtss-rights
 Group=www-data
 WorkingDirectory=/opt/xtss-rights
 Environment="PATH=/opt/xtss-rights/venv/bin"
-ExecStart=/opt/xtss-rights/venv/bin/gunicorn --workers 4 --bind unix:/opt/xtss-rights/socket/rights.sock -m 007 server:app
+ExecStart=/opt/xtss-rights/venv/bin/gunicorn --workers 4 --bind unix:/opt/xtss-rights/socket/rights.sock -m 007 'rights:create_app("/opt/xtss-rights/config.yaml")'
 
 [Install]
 WantedBy=multi-user.target

@@ -1,6 +1,6 @@
-# Rights service for X-tee self service portal
+# Rights service for X-tee self-service portal
 
-This simple service is used by X-tee self service portal to store user rights. You can use Docker to [test service locally](local/README.md).
+This simple service is used by X-tee self-service portal to store user rights. You can use Docker to [test service locally](local/README.md).
 
 ## Install dependencies
 
@@ -49,14 +49,16 @@ pip install -r requirements.txt
 
 ## Configuration
 
-Create a configuration file `/opt/xtss-rights/config.json` using an example configuration file [example-config.json](example-config.json).
+Create a configuration file `/opt/xtss-rights/config.json` using an example configuration file [example-config.yaml](example-config.yaml).
 
 Configuration parameters:
+* `log_file` - log to file instead of stdout if 'log_file' is set;
 * `db_host` - database address or comma separated list of addresses for client-side DB HA;
 * `db_port` - database port;
 * `db_db` - database name;
 * `db_user` - database user name;
 * `db_pass` - database user password;
+* `db_connect_timeout` - database connection timeout;
 * `allow_all` - if "true" then disable certificate DN check, default value: "false";
 * `allowed` - list of allowed certificate DN's.
 

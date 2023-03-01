@@ -1,9 +1,5 @@
-version: "3"
+---
 services:
-  rights:
-    build: ./
-    ports:
-      - "5080:5080"
   db:
     image: postgres
     volumes:
@@ -13,3 +9,34 @@ services:
     environment:
       POSTGRES_DB: db_rights
       POSTGRES_PASSWORD: password
+    healthcheck:
+      test: ["CMD", "pg_isready", "-h", "db", "--username=postgres"]
+      interval: 10s
+      timeout: 5s
+      retries: 3
+      start_period: 5s
+
+  liquibase:
+    image: liquibase/liquibase
+    volumes:
+      - ../liquibase:/liquibase/changelog
+    command: >
+      --defaultsFile=/liquibase/changelog/liquibase.local.properties update
+    depends_on:
+      db:
+        condition: service_healthy
+
+  rights:
+    build:
+      context: ../
+      dockerfile: ./local/Dockerfile
+    volumes:
+      - ../rights.py:/app/rights.py
+      - ./config.yaml:/app/config.yaml
+    ports:
+      - "5080:5080"
+    depends_on:
+      db:
+        condition: service_healthy
+      liquibase:
+        condition: service_completed_successfully
