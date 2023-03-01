@@ -94,9 +94,20 @@ def get_db_connection(conf):
     connect_timeout = DEFAULT_CONNECT_TIMEOUT
     if 'db_connect_timeout' in conf:
         connect_timeout = conf['db_connect_timeout']
+    optional_config = ''
+    if 'db_pass' in conf:
+        optional_config += f"password={conf['db_pass']} "
+    if 'db_ssl_mode' in conf:
+        optional_config += f"sslmode={conf['db_ssl_mode']} "
+    if 'db_ssl_root_cert' in conf:
+        optional_config += f"sslrootcert={conf['db_ssl_root_cert']} "
+    if 'db_ssl_cert' in conf:
+        optional_config += f"sslcert={conf['db_ssl_cert']} "
+    if 'db_ssl_key' in conf:
+        optional_config += f"sslkey={conf['db_ssl_key']} "
     return psycopg2.connect(
         f"host={conf['db_host']} port={conf['db_port']} dbname={conf['db_db']} "
-        f"user={conf['db_user']} password={conf['db_pass']} "
+        f"user={conf['db_user']} {optional_config}"
         f"connect_timeout={connect_timeout} target_session_attrs=read-write"
     )
 
@@ -290,7 +301,7 @@ def make_response(data, log_header, log_level='info'):
 def validate_config(conf, log_header):
     """Validate configuration values"""
     if not conf.get('db_host') or not conf.get('db_port') or not conf.get('db_db') \
-            or not conf.get('db_user') or not conf.get('db_pass'):
+            or not conf.get('db_user'):
         LOGGER.error('%sDB_CONF_ERROR: Cannot access database configuration', log_header)
         return {
             'http_status': 500, 'code': 'DB_CONF_ERROR',

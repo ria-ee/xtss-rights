@@ -106,6 +106,20 @@ class MainTestCase(unittest.TestCase):
             'host=localhost port=5432 dbname=postgres user=postgres password=password '
             'connect_timeout=5 target_session_attrs=read-write')
 
+    @patch('psycopg2.connect')
+    def test_get_db_connection_ssl(self, mock_pg_connect):
+        my_config = self.config.copy()
+        del my_config['db_pass']
+        my_config['db_ssl_mode'] = 'SSL_MODE'
+        my_config['db_ssl_root_cert'] = 'SSL_ROOT_CERT'
+        my_config['db_ssl_cert'] = 'SSl_CERT'
+        my_config['db_ssl_key'] = 'SSL_KEY'
+        rights.get_db_connection(my_config)
+        mock_pg_connect.assert_called_with(
+            'host=localhost port=5432 dbname=postgres user=postgres '
+            'sslmode=SSL_MODE sslrootcert=SSL_ROOT_CERT sslcert=SSl_CERT sslkey=SSL_KEY '
+            'connect_timeout=10 target_session_attrs=read-write')
+
     def test_get_person(self):
         cur = MagicMock()
         cur.execute = MagicMock()
@@ -382,7 +396,7 @@ class MainTestCase(unittest.TestCase):
         self.assertEqual(None, rights.validate_config(self.config, 'HEADER: '))
 
     def test_validate_config_no_field(self):
-        field_list = ['db_host', 'db_port', 'db_db', 'db_user', 'db_pass']
+        field_list = ['db_host', 'db_port', 'db_db', 'db_user']
         for field in field_list:
             my_config = self.config.copy()
             del my_config[field]
