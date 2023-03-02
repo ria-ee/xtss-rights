@@ -52,7 +52,6 @@ pip install -r requirements.txt
 Create a configuration file `/opt/xtss-rights/config.json` using an example configuration file [example-config.yaml](example-config.yaml).
 
 Configuration parameters:
-* `log_file` - (optional) log to file instead of stdout if 'log_file' is set;
 * `db_host` - database address or comma separated list of addresses for client-side DB HA;
 * `db_port` - database port;
 * `db_db` - database name;
@@ -64,9 +63,12 @@ Configuration parameters:
 * `db_ssl_key` - (optional) client SSL key;
 * `db_connect_timeout` - (optional) database connection timeout;
 * `allow_all` - (optional) if "true" then disable certificate DN check, default value: "false";
-* `allowed` - (optional) list of allowed certificate DN's.
+* `allowed` - (optional) list of allowed certificate DN's;
+* `log_file` - (optional) log to file instead of stdout if set and `logging_config` is not provided;
+* `logging_config` - (optional) python logging configuration, overrides `log_file` parameter.
 
 Additional information about db configuration parameters: https://www.postgresql.org/docs/current/libpq-connect.html
+Additional information about python logging: https://docs.python.org/3/library/logging.config.html#logging.config.dictConfig
 
 ## DB initialization using Liquibase
 

@@ -77,6 +77,23 @@ class MainTestCase(unittest.TestCase):
         mock_load_config.assert_called_with('CONFIG_FILE')
         self.assertEqual({'log_file': 'LOG_FILE'}, config)
 
+    @patch('rights.load_config', return_value={
+        'log_file': 'LOG_FILE', 'logging_config': 'LOGGING_CONFIG'})
+    @patch('os.umask')
+    @patch('rights.LOGGER')
+    @patch('logging.FileHandler')
+    @patch('logging.config.dictConfig')
+    def test_configure_app_logging_config(
+            self, mock_dict_config, mock_log_file_handler, mock_logger,
+            mock_os_umask, mock_load_config):
+        config = rights.configure_app('CONFIG_FILE')
+        mock_log_file_handler.assert_not_called()
+        mock_dict_config.assert_called_with('LOGGING_CONFIG')
+        mock_logger.addHandler.assert_has_calls(mock_log_file_handler)
+        mock_os_umask.assert_called_with(0o137)
+        mock_load_config.assert_called_with('CONFIG_FILE')
+        self.assertEqual({'log_file': 'LOG_FILE', 'logging_config': 'LOGGING_CONFIG'}, config)
+
     @patch('rights.load_config', return_value={'a': 'b'})
     @patch('os.umask')
     @patch('rights.LOGGER')

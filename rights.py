@@ -15,7 +15,7 @@ __version__ = '1.1.0'
 
 from datetime import datetime
 import logging
-from logging.handlers import MemoryHandler
+import logging.config
 import os
 import uuid
 from flask import Flask, request, jsonify
@@ -58,9 +58,10 @@ def load_config(config_file):
 
 def configure_app(config_file):
     """Prepare service logging and directories using config"""
-    # MemoryHandler will buffer logs until proper logger is configured
-    memory_handler = MemoryHandler(LOG_BUFFER, flushLevel=logging.CRITICAL)
-    LOGGER.addHandler(memory_handler)
+    console_handler = logging.StreamHandler()
+    console_handler.setFormatter(
+        logging.Formatter('%(asctime)s - %(process)d - %(levelname)s: %(message)s'))
+    LOGGER.addHandler(console_handler)
     LOGGER.setLevel(logging.INFO)
 
     config = load_config(config_file)
@@ -68,23 +69,21 @@ def configure_app(config_file):
     # Set umask for created files
     os.umask(FILE_UMASK)
 
-    # Redirect logging into configured log file.
-    if config.get('log_file'):
+    # Reconfigure logging if logging_config or log_file configuration parameters were provided
+    if config.get('logging_config'):
+        logging.config.dictConfig(config['logging_config'])
+        LOGGER.info(
+            'Configured logging using "logging_config" parameter '
+            'from "%s" configuration file', config_file)
+    elif config.get('log_file'):
         file_handler = logging.FileHandler(config['log_file'])
         file_handler.setFormatter(
             logging.Formatter('%(asctime)s - %(process)d - %(levelname)s: %(message)s'))
         LOGGER.addHandler(file_handler)
-        memory_handler.setTarget(file_handler)
-    else:
-        console_handler = logging.StreamHandler()
-        console_handler.setFormatter(
-            logging.Formatter('%(asctime)s - %(process)d - %(levelname)s: %(message)s'))
-        LOGGER.addHandler(console_handler)
-        memory_handler.setTarget(console_handler)
-
-    # Flush and remove temporary log buffer
-    memory_handler.flush()
-    LOGGER.removeHandler(memory_handler)
+        LOGGER.info(
+            'Configured logging using "log_file" parameter '
+            'from "%s" configuration file', config_file)
+        LOGGER.removeHandler(console_handler)
 
     return config
 
