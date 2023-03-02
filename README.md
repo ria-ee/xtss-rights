@@ -64,7 +64,7 @@ Configuration parameters:
 * `db_connect_timeout` - (optional) database connection timeout;
 * `allow_all` - (optional) if "true" then disable certificate DN check, default value: "false";
 * `allowed` - (optional) list of allowed certificate DN's;
-* `log_file` - (optional) log to file instead of stdout if set and `logging_config` is not provided;
+* `log_file` - (optional) log to file instead of stdout if `log_file` is set and `logging_config` is not provided;
 * `logging_config` - (optional) python logging configuration, overrides `log_file` parameter.
 
 Additional information about db configuration parameters: https://www.postgresql.org/docs/current/libpq-connect.html

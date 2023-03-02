@@ -3,7 +3,7 @@
 ## Prerequisites
 You will need a `docker` with docker compose plugin installed in order to use run service locally
 
-## Running on Linux
+## Running
 Start service by navigating to `local` directory and running:
 ```
 docker compose up --build

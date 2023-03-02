@@ -24,8 +24,8 @@ allow_all: false
 allowed:
   - OU=XTSS,O=RIA,C=EE
 
-# Log to file instead of stdout if set and 'logging_config' is not provided
-# log_file: /var/log/xtss-rights/service.log
+# Log to file instead of stdout if 'log_file' is set and 'logging_config' is not provided
+# log_file: /var/log/xtss-rights/rights.log
 
 # Python logging configuration, overrides 'log_file' parameter
 # https://docs.python.org/3/library/logging.config.html#logging.config.dictConfig
@@ -44,7 +44,7 @@ allowed:
 #       level: INFO
 #       formatter: standard
 #       class: logging.handlers.TimedRotatingFileHandler
-#       filename: /var/log/xtss-rights/service.log
+#       filename: /var/log/xtss-rights/rights.log
 #       when: midnight
 #       backupCount: 7
 #   loggers:
