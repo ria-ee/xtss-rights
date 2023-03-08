@@ -43,10 +43,8 @@ allowed:
 #     file:
 #       level: INFO
 #       formatter: standard
-#       class: logging.handlers.TimedRotatingFileHandler
+#       class: logging.handlers.WatchedFileHandler
 #       filename: /var/log/xtss-rights/rights.log
-#       when: midnight
-#       backupCount: 7
 #   loggers:
 #     "":
 #       handlers:

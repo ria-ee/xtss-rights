@@ -38,10 +38,16 @@ allowed:
   - OU=XTSS,O=RIA,C=EE
 
 # Log to file instead of stdout if 'log_file' is set and 'logging_config' is not provided
+# Note that logrotate is not supported with this logging mode
 log_file: /var/log/xtss-rights/rights.log
 
 # Python logging configuration, overrides 'log_file' parameter
 # https://docs.python.org/3/library/logging.config.html#logging.config.dictConfig
+# NB! Python logging does not support logging from multiple processes to a single file
+# https://docs.python.org/3/howto/logging-cookbook.html#logging-to-a-single-file-from-multiple-processes
+# SocketHandler or StreamHandler are preferred logging classes that should work reliably
+# FileHandler or WatchedFileHandler (with logrotate) may work depending on your system
+# Rotating file handlers will not work if you have more than one process running
 # logging_config:
 #   version: 1
 #   formatters:
@@ -56,10 +62,8 @@ log_file: /var/log/xtss-rights/rights.log
 #     file:
 #       level: INFO
 #       formatter: standard
-#       class: logging.handlers.TimedRotatingFileHandler
+#       class: logging.handlers.WatchedFileHandler
 #       filename: /var/log/xtss-rights/rights.log
-#       when: midnight
-#       backupCount: 7
 #   loggers:
 #     "":
 #       handlers:
