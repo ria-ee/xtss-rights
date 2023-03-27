@@ -1,0 +1,13 @@
+/var/log/xtss-rights/rights.log {
+        weekly
+        rotate 12
+        compress
+        delaycompress
+        missingok
+        notifempty
+        create 0640 xtss-rights syslog
+        sharedscripts
+        postrotate
+                systemctl restart rsyslog
+        endscript
+}

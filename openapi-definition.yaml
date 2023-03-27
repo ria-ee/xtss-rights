@@ -1,3 +1,4 @@
+---
 openapi: 3.0.0
 info:
   description: Rights API
@@ -20,7 +21,9 @@ paths:
         - admin
       summary: Set right
       operationId: setRight
-      description: Add or update person right. Undefined/missing organization or person names will not overwrite names in database, but empty names will.
+      description: >
+        Add or update person right. Undefined/missing organization or person names
+        will not overwrite names in database, but empty names will.
       responses:
         '201':
           description: Right added
@@ -31,7 +34,7 @@ paths:
               examples:
                 added:
                   summary: Right added
-                  value: {"code":"CREATED","msg":"New right added"}
+                  value: {"code":"CREATED", "msg":"New right added"}
         '400':
           description: Invalid input
           content:
@@ -74,39 +77,39 @@ paths:
               req:
                 summary: Example request parameters
                 value: {
-  "organization": {
-    "code": "00000000",
-    "name": "Org 0"
-  },
-  "person": {
-    "code": "12345678901",
-    "first_name": "Firstname",
-    "last_name": "Lastname"
-  },
-  "right": {
-    "right_type": "RIGHT1",
-    "valid_from": "2019-09-01T00:00:00",
-    "valid_to": "2019-09-10T00:00:00"
-  }
-}
+                  "organization": {
+                    "code": "00000000",
+                    "name": "Org 0"
+                  },
+                  "person": {
+                    "code": "12345678901",
+                    "first_name": "Firstname",
+                    "last_name": "Lastname"
+                  },
+                  "right": {
+                    "right_type": "RIGHT1",
+                    "valid_from": "2019-09-01T00:00:00",
+                    "valid_to": "2019-09-10T00:00:00"
+                  }
+                }
               reqMicro:
                 summary: Microsecond precission
                 value: {
-  "organization": {
-    "code": "00000000",
-    "name": "Org 0"
-  },
-  "person": {
-    "code": "12345678901",
-    "first_name": "Firstname",
-    "last_name": "Lastname"
-  },
-  "right": {
-    "right_type": "RIGHT1",
-    "valid_from": "2019-09-01T00:00:00.000000",
-    "valid_to": "2019-09-10T00:00:00.000000"
-  }
-}
+                  "organization": {
+                    "code": "00000000",
+                    "name": "Org 0"
+                  },
+                  "person": {
+                    "code": "12345678901",
+                    "first_name": "Firstname",
+                    "last_name": "Lastname"
+                  },
+                  "right": {
+                    "right_type": "RIGHT1",
+                    "valid_from": "2019-09-01T00:00:00.000000",
+                    "valid_to": "2019-09-10T00:00:00.000000"
+                  }
+                }
         description: New Right to add
   /revoke-right:
     post:
@@ -125,10 +128,10 @@ paths:
               examples:
                 revoked:
                   summary: Right revoked
-                  value: {"code":"CREATED","msg":"New right added"}
+                  value: {"code":"CREATED", "msg":"New right added"}
                 notFound:
                   summary: Right was not found
-                  value: {"code":"CREATED","msg":"No right was found"}
+                  value: {"code":"CREATED", "msg":"No right was found"}
         '400':
           description: Invalid input
           content:
@@ -168,10 +171,10 @@ paths:
               req:
                 summary: Example request parameters
                 value: {
-  "organization_code": "00000000",
-  "person_code": "12345678901",
-  "right_type": "RIGHT1"
-}
+                  "organization_code": "00000000",
+                  "person_code": "12345678901",
+                  "right_type": "RIGHT1"
+                }
         description: Right to revoke
   /rights:
     post:
@@ -191,7 +194,34 @@ paths:
               examples:
                 found:
                   summary: Rights found
-                  value: {"code":"OK","msg":"Found 1 rights","response":{"limit":5,"offset":0,"total":1,"rights":[{"organization":{"code":"00000000","name":"Org 0"},"person":{"code":"12345678901","first_name":"Firstname","last_name":"Lastname"},"right":{"right_type":"RIGHT1","valid_from":"2019-08-29T13:11:34.432664","valid_to":"2019-09-10T00:00:00.000000","revoked":false}}]}}
+                  value: {
+                    "code": "OK",
+                    "msg": "Found 1 rights",
+                    "response": {
+                      "limit": 5,
+                      "offset": 0,
+                      "total": 1,
+                      "rights": [
+                        {
+                          "organization": {
+                            "code": "00000000",
+                            "name": "Org 0"
+                          },
+                          "person": {
+                            "code": "12345678901",
+                            "first_name": "Firstname",
+                            "last_name": "Lastname"
+                          },
+                          "right": {
+                            "right_type": "RIGHT1",
+                            "valid_from": "2019-08-29T13:11:34.432664",
+                            "valid_to": "2019-09-10T00:00:00.000000",
+                            "revoked": false
+                          }
+                        }
+                      ]
+                    }
+                  }
         '403':
           description: Client certificate is not allowed
           content:
@@ -221,14 +251,13 @@ paths:
               req:
                 summary: Example request parameters
                 value: {
-  "organizations": ["00000000", "00000001"],
-  "persons": ["12345678901", "12345"],
-  "rights": ["RIGHT1", "XXX"],
-  "only_valid": false,
-  "limit": 5,
-  "offset": 2
-}
-
+                  "organizations": ["00000000", "00000001"],
+                  "persons": ["12345678901", "12345"],
+                  "rights": ["RIGHT1", "XXX"],
+                  "only_valid": false,
+                  "limit": 5,
+                  "offset": 2
+                }
         description: Search rights
   /person:
     post:
@@ -247,7 +276,7 @@ paths:
               examples:
                 added:
                   summary: Right added
-                  value: {"code":"OK","msg":"Person updated"}
+                  value: {"code":"OK", "msg":"Person updated"}
         '400':
           description: Invalid input
           content:
@@ -287,11 +316,10 @@ paths:
               req:
                 summary: Example request parameters
                 value: {
-  "code": "12345678901",
-  "first_name": "First-name",
-  "last_name": "Last-name"
-}
-
+                  "code": "12345678901",
+                  "first_name": "First-name",
+                  "last_name": "Last-name"
+                }
         description: New person data
   /organization:
     post:
@@ -310,7 +338,7 @@ paths:
               examples:
                 added:
                   summary: Right added
-                  value: {"code":"OK","msg":"Organization updated"}
+                  value: {"code":"OK", "msg":"Organization updated"}
         '400':
           description: Invalid input
           content:
@@ -350,10 +378,9 @@ paths:
               req:
                 summary: Example request parameters
                 value: {
-  "code": "00000000",
-  "name": "Org name"
-}
-
+                  "code": "00000000",
+                  "name": "Org name"
+                }
         description: New organization data
 components:
   schemas:

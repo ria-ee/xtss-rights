@@ -2,10 +2,10 @@ FROM python:3.8
 
 WORKDIR /app
 
-COPY files/requirements.txt files/rights.py files/server.py ./
+COPY requirements.txt ./
 RUN pip install --no-cache-dir -r requirements.txt
 
-COPY local_config.json config.json
 RUN mkdir -p /var/log/xtss-rights
 
-CMD gunicorn --workers 4 --bind 0.0.0.0:5080 server:app
+CMD flask --app 'rights:create_app("/app/config.yaml")' run --reload --host 0.0.0.0 --port 5080
+#CMD gunicorn --workers 4 --bind 0.0.0.0:5080 'rights:create_app("/app/config.yaml")'

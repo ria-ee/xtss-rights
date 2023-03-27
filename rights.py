@@ -11,15 +11,24 @@ This module allows:
     * checking API status
 """
 
-from datetime import datetime
-import json
-import logging
-import uuid
-import psycopg2
-from flask import request, jsonify
-from flask_restful import Resource
+__version__ = '1.1.0'
 
-LOGGER = logging.getLogger('rights')
+from datetime import datetime
+import logging
+import logging.config
+import os
+import uuid
+from flask import Flask, request, jsonify
+from flask_restful import Api, Resource
+import psycopg2
+import yaml
+
+LOGGER = logging.getLogger(__name__)
+DEFAULT_CONFIG_FILE = 'config.yaml'
+SAVE_PATH_DIR_MODE = 0o700
+FILE_UMASK = 0o137
+LOG_BUFFER = 100
+
 DEFAULT_ONLY_VALID = True
 DEFAULT_LIMIT = 100
 DEFAULT_OFFSET = 0
@@ -28,15 +37,76 @@ TIME_FORMAT = '%Y-%m-%dT%H:%M:%S.%f'
 TIME_FORMAT_SEC = '%Y-%m-%dT%H:%M:%S'
 TIME_FORMAT_DB = '%Y-%m-%d %H:%M:%S'
 
+DB_ERROR_MSG = 'Unclassified database error'
+INCOMING_REQUEST_MSG = 'Incoming request'
+CLIENT_DN_MSG = 'Client DN'
+
+
+def load_config(config_file):
+    """Load configuration from YAML file"""
+    try:
+        with open(config_file, 'r', encoding='utf-8') as conf:
+            LOGGER.info('Loading configuration from file "%s"', config_file)
+            return yaml.safe_load(conf)
+    except IOError as err:
+        LOGGER.error('Cannot open configuration file "%s": %s', config_file, str(err))
+        return {}
+    except yaml.YAMLError as err:
+        LOGGER.error('Invalid YAML configuration file "%s": %s', config_file, str(err))
+        return {}
+
+
+def configure_app(config_file):
+    """Prepare service logging and directories using config"""
+    console_handler = logging.StreamHandler()
+    console_handler.setFormatter(
+        logging.Formatter('%(asctime)s - %(process)d - %(levelname)s: %(message)s'))
+    LOGGER.addHandler(console_handler)
+    LOGGER.setLevel(logging.INFO)
+
+    config = load_config(config_file)
+
+    # Set umask for created files
+    os.umask(FILE_UMASK)
+
+    # Reconfigure logging if logging_config or log_file configuration parameters were provided
+    if config.get('logging_config'):
+        logging.config.dictConfig(config['logging_config'])
+        LOGGER.info(
+            'Configured logging using "logging_config" parameter '
+            'from "%s" configuration file', config_file)
+    elif config.get('log_file'):
+        file_handler = logging.FileHandler(config['log_file'])
+        file_handler.setFormatter(
+            logging.Formatter('%(asctime)s - %(process)d - %(levelname)s: %(message)s'))
+        LOGGER.addHandler(file_handler)
+        LOGGER.info(
+            'Configured logging using "log_file" parameter '
+            'from "%s" configuration file', config_file)
+        LOGGER.removeHandler(console_handler)
+
+    return config
+
 
 def get_db_connection(conf):
     """Get connection object for Central Server database"""
     connect_timeout = DEFAULT_CONNECT_TIMEOUT
     if 'db_connect_timeout' in conf:
         connect_timeout = conf['db_connect_timeout']
+    optional_config = ''
+    if 'db_pass' in conf:
+        optional_config += f"password={conf['db_pass']} "
+    if 'db_ssl_mode' in conf:
+        optional_config += f"sslmode={conf['db_ssl_mode']} "
+    if 'db_ssl_root_cert' in conf:
+        optional_config += f"sslrootcert={conf['db_ssl_root_cert']} "
+    if 'db_ssl_cert' in conf:
+        optional_config += f"sslcert={conf['db_ssl_cert']} "
+    if 'db_ssl_key' in conf:
+        optional_config += f"sslkey={conf['db_ssl_key']} "
     return psycopg2.connect(
         f"host={conf['db_host']} port={conf['db_port']} dbname={conf['db_db']} "
-        f"user={conf['db_user']} password={conf['db_pass']} "
+        f"user={conf['db_user']} {optional_config}"
         f"connect_timeout={connect_timeout} target_session_attrs=read-write"
     )
 
@@ -227,24 +297,10 @@ def make_response(data, log_header, log_level='info'):
     return response
 
 
-def load_config(config_file):
-    """Load configuration from JSON file"""
-    try:
-        with open(config_file, 'r', encoding='utf-8') as conf:
-            LOGGER.info('Configuration loaded from file "%s"', config_file)
-            return json.load(conf)
-    except IOError as err:
-        LOGGER.error('Cannot load configuration file "%s": %s', config_file, str(err))
-        return None
-    except json.JSONDecodeError as err:
-        LOGGER.error('Invalid JSON configuration file "%s": %s', config_file, str(err))
-        return None
-
-
 def validate_config(conf, log_header):
     """Validate configuration values"""
     if not conf.get('db_host') or not conf.get('db_port') or not conf.get('db_db') \
-            or not conf.get('db_user') or not conf.get('db_pass'):
+            or not conf.get('db_user'):
         LOGGER.error('%sDB_CONF_ERROR: Cannot access database configuration', log_header)
         return {
             'http_status': 500, 'code': 'DB_CONF_ERROR',
@@ -660,9 +716,6 @@ def process_set_organization(conf, json_data, log_header):
 
 def check_client(config, client_dn):
     """Check if client dn is in whitelist"""
-    # If config is None then all clients are not allowed
-    if config is None:
-        return False
     if config.get('allow_all', False) is True:
         return True
 
@@ -707,7 +760,7 @@ def get_log_header(method):
     return f'[{method}] '
 
 
-class SetRightApi(Resource):
+class SetRightApi(Resource):  # pylint: disable=too-few-public-methods
     """SetRight API class for Flask"""
     def __init__(self, config):
         self.config = config
@@ -718,8 +771,8 @@ class SetRightApi(Resource):
         json_data = request.get_json(force=True)
         client_dn = request.headers.get('X-Ssl-Client-S-Dn')
 
-        LOGGER.info('%sIncoming request: %s', log_header, json_data)
-        LOGGER.info('%sClient DN: %s', log_header, client_dn)
+        LOGGER.info('%s%s: %s', log_header, INCOMING_REQUEST_MSG, json_data)
+        LOGGER.info('%s%s: %s', log_header, CLIENT_DN_MSG, client_dn)
 
         if not check_client(self.config, client_dn):
             return incorrect_client(client_dn, log_header)
@@ -727,15 +780,15 @@ class SetRightApi(Resource):
         try:
             response = process_set_right(self.config, json_data, log_header)
         except psycopg2.Error as err:
-            LOGGER.error('%sDB_ERROR: Unclassified database error: %s', log_header, err)
+            LOGGER.error('%sDB_ERROR: %s: %s', log_header, DB_ERROR_MSG, err)
             response = {
                 'http_status': 500, 'code': 'DB_ERROR',
-                'msg': 'Unclassified database error'}
+                'msg': DB_ERROR_MSG}
 
         return make_response(response, log_header)
 
 
-class RevokeRightApi(Resource):
+class RevokeRightApi(Resource):  # pylint: disable=too-few-public-methods
     """RevokeRight API class for Flask"""
     def __init__(self, config):
         self.config = config
@@ -746,8 +799,8 @@ class RevokeRightApi(Resource):
         json_data = request.get_json(force=True)
         client_dn = request.headers.get('X-Ssl-Client-S-Dn')
 
-        LOGGER.info('%sIncoming request: %s', log_header, json_data)
-        LOGGER.info('%sClient DN: %s', log_header, client_dn)
+        LOGGER.info('%s%s: %s', log_header, INCOMING_REQUEST_MSG, json_data)
+        LOGGER.info('%s%s: %s', log_header, CLIENT_DN_MSG, client_dn)
 
         if not check_client(self.config, client_dn):
             return incorrect_client(client_dn, log_header)
@@ -755,15 +808,15 @@ class RevokeRightApi(Resource):
         try:
             response = process_revoke_right(self.config, json_data, log_header)
         except psycopg2.Error as err:
-            LOGGER.error('%sDB_ERROR: Unclassified database error: %s', log_header, err)
+            LOGGER.error('%sDB_ERROR: %s: %s', log_header, DB_ERROR_MSG, err)
             response = {
                 'http_status': 500, 'code': 'DB_ERROR',
-                'msg': 'Unclassified database error'}
+                'msg': DB_ERROR_MSG}
 
         return make_response(response, log_header)
 
 
-class RightsApi(Resource):
+class RightsApi(Resource):  # pylint: disable=too-few-public-methods
     """Rights API class for Flask"""
     def __init__(self, config):
         self.config = config
@@ -774,8 +827,8 @@ class RightsApi(Resource):
         json_data = request.get_json(force=True)
         client_dn = request.headers.get('X-Ssl-Client-S-Dn')
 
-        LOGGER.info('%sIncoming request: %s', log_header, json_data)
-        LOGGER.info('%sClient DN: %s', log_header, client_dn)
+        LOGGER.info('%s%s: %s', log_header, INCOMING_REQUEST_MSG, json_data)
+        LOGGER.info('%s%s: %s', log_header, CLIENT_DN_MSG, client_dn)
 
         if not check_client(self.config, client_dn):
             return incorrect_client(client_dn, log_header)
@@ -783,16 +836,16 @@ class RightsApi(Resource):
         try:
             response = process_search_rights(self.config, json_data, log_header)
         except psycopg2.Error as err:
-            LOGGER.error('%sDB_ERROR: Unclassified database error: %s', log_header, err)
+            LOGGER.error('%sDB_ERROR: %s: %s', log_header, DB_ERROR_MSG, err)
             response = {
                 'http_status': 500, 'code': 'DB_ERROR',
-                'msg': 'Unclassified database error'}
+                'msg': DB_ERROR_MSG}
 
         # Logging responses (that may be big) only on DEBUG level
         return make_response(response, log_header, log_level='debug')
 
 
-class PersonApi(Resource):
+class PersonApi(Resource):  # pylint: disable=too-few-public-methods
     """Person API class for Flask"""
     def __init__(self, config):
         self.config = config
@@ -803,8 +856,8 @@ class PersonApi(Resource):
         json_data = request.get_json(force=True)
         client_dn = request.headers.get('X-Ssl-Client-S-Dn')
 
-        LOGGER.info('%sIncoming request: %s', log_header, json_data)
-        LOGGER.info('%sClient DN: %s', log_header, client_dn)
+        LOGGER.info('%s%s: %s', log_header, INCOMING_REQUEST_MSG, json_data)
+        LOGGER.info('%s%s: %s', log_header, CLIENT_DN_MSG, client_dn)
 
         if not check_client(self.config, client_dn):
             return incorrect_client(client_dn, log_header)
@@ -812,15 +865,15 @@ class PersonApi(Resource):
         try:
             response = process_set_person(self.config, json_data, log_header)
         except psycopg2.Error as err:
-            LOGGER.error('%sDB_ERROR: Unclassified database error: %s', log_header, err)
+            LOGGER.error('%sDB_ERROR: %s: %s', log_header, DB_ERROR_MSG, err)
             response = {
                 'http_status': 500, 'code': 'DB_ERROR',
-                'msg': 'Unclassified database error'}
+                'msg': DB_ERROR_MSG}
 
         return make_response(response, log_header)
 
 
-class OrganizationApi(Resource):
+class OrganizationApi(Resource):  # pylint: disable=too-few-public-methods
     """Organization API class for Flask"""
     def __init__(self, config):
         self.config = config
@@ -831,8 +884,8 @@ class OrganizationApi(Resource):
         json_data = request.get_json(force=True)
         client_dn = request.headers.get('X-Ssl-Client-S-Dn')
 
-        LOGGER.info('%sIncoming request: %s', log_header, json_data)
-        LOGGER.info('%sClient DN: %s', log_header, client_dn)
+        LOGGER.info('%s%s: %s', log_header, INCOMING_REQUEST_MSG, json_data)
+        LOGGER.info('%s%s: %s', log_header, CLIENT_DN_MSG, client_dn)
 
         if not check_client(self.config, client_dn):
             return incorrect_client(client_dn, log_header)
@@ -840,15 +893,15 @@ class OrganizationApi(Resource):
         try:
             response = process_set_organization(self.config, json_data, log_header)
         except psycopg2.Error as err:
-            LOGGER.error('%sDB_ERROR: Unclassified database error: %s', log_header, err)
+            LOGGER.error('%sDB_ERROR: %s: %s', log_header, DB_ERROR_MSG, err)
             response = {
                 'http_status': 500, 'code': 'DB_ERROR',
-                'msg': 'Unclassified database error'}
+                'msg': DB_ERROR_MSG}
 
         return make_response(response, log_header)
 
 
-class StatusApi(Resource):
+class StatusApi(Resource):  # pylint: disable=too-few-public-methods
     """Status API class for Flask"""
     def __init__(self, config):
         self.config = config
@@ -861,9 +914,27 @@ class StatusApi(Resource):
         try:
             response = test_db(self.config, log_header)
         except psycopg2.Error as err:
-            LOGGER.error('%sDB_ERROR: Unclassified database error: %s', log_header, err)
+            LOGGER.error('%sDB_ERROR: %s: %s', log_header, DB_ERROR_MSG, err)
             response = {
                 'http_status': 500, 'code': 'DB_ERROR',
-                'msg': 'Unclassified database error'}
+                'msg': DB_ERROR_MSG}
 
         return make_response(response, log_header)
+
+
+def create_app(config_file=DEFAULT_CONFIG_FILE):
+    """Create Flask application"""
+    config = configure_app(config_file)
+
+    app = Flask(__name__)
+    api = Api(app)
+    api.add_resource(SetRightApi, '/set-right', resource_class_kwargs={'config': config})
+    api.add_resource(RevokeRightApi, '/revoke-right', resource_class_kwargs={'config': config})
+    api.add_resource(RightsApi, '/rights', resource_class_kwargs={'config': config})
+    api.add_resource(PersonApi, '/person', resource_class_kwargs={'config': config})
+    api.add_resource(OrganizationApi, '/organization', resource_class_kwargs={'config': config})
+    api.add_resource(StatusApi, '/status', resource_class_kwargs={'config': config})
+
+    LOGGER.info('Starting Rights API v%s', __version__)
+
+    return app

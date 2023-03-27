@@ -1,6 +1,6 @@
-# Rights service for X-tee self service portal
+# Rights service for X-tee self-service portal
 
-This simple service is used by X-tee self service portal to store user rights. You can use Docker to [test service locally](local/README.md).
+This simple service is used by X-tee self-service portal to store user rights. You can use Docker to [test service locally](local/README.md).
 
 ## Install dependencies
 
@@ -49,16 +49,26 @@ pip install -r requirements.txt
 
 ## Configuration
 
-Create a configuration file `/opt/xtss-rights/config.json` using an example configuration file [example-config.json](example-config.json).
+Create a configuration file `/opt/xtss-rights/config.json` using an example configuration file [example-config.yaml](example-config.yaml).
 
 Configuration parameters:
 * `db_host` - database address or comma separated list of addresses for client-side DB HA;
 * `db_port` - database port;
 * `db_db` - database name;
 * `db_user` - database user name;
-* `db_pass` - database user password;
-* `allow_all` - if "true" then disable certificate DN check, default value: "false";
-* `allowed` - list of allowed certificate DN's.
+* `db_pass` - (optional) database user password;
+* `db_ssl_mode` - (optional) determines if SSL connection will be used;
+* `db_ssl_root_cert` - (optional) trusted root CA of database certificate;
+* `db_ssl_cert` - (optional) client SSL certificate;
+* `db_ssl_key` - (optional) client SSL key;
+* `db_connect_timeout` - (optional) database connection timeout;
+* `allow_all` - (optional) if "true" then disable certificate DN check, default value: "false";
+* `allowed` - (optional) list of allowed certificate DN's;
+* `log_file` - (optional) log to file instead of stdout if `log_file` is set and `logging_config` is not provided;
+* `logging_config` - (optional) python logging configuration, overrides `log_file` parameter.
+
+Additional information about db configuration parameters: https://www.postgresql.org/docs/current/libpq-connect.html
+Additional information about python logging: https://docs.python.org/3/library/logging.config.html#logging.config.dictConfig
 
 ## DB initialization using Liquibase
 

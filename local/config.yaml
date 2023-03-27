@@ -1,0 +1,60 @@
+---
+# Database address or comma separated list of addresses for client-side DB HA
+db_host: db
+
+# Database port
+db_port: 5432
+
+# Database name
+db_db: db_rights
+
+# Database username
+db_user: rights_app
+
+# Database user password
+db_pass: password
+
+# Database connection timeout
+db_connect_timeout: 5
+
+# If "true" then disable certificate DN check, default value: "false"
+allow_all: false
+
+# List of allowed certificate DN's
+allowed:
+  - OU=XTSS,O=RIA,C=EE
+
+# Log to file instead of stdout if 'log_file' is set and 'logging_config' is not provided
+# log_file: /var/log/xtss-rights/rights.log
+
+# Python logging configuration, overrides 'log_file' parameter
+# https://docs.python.org/3/library/logging.config.html#logging.config.dictConfig
+# logging_config:
+#   version: 1
+#   formatters:
+#     standard:
+#       format: "%(asctime)s - %(process)d - %(levelname)s: %(message)s"
+#   handlers:
+#     console:
+#       level: INFO
+#       formatter: standard
+#       class: logging.StreamHandler
+#       stream: ext://sys.stderr
+#     file:
+#       level: INFO
+#       formatter: standard
+#       class: logging.handlers.WatchedFileHandler
+#       filename: /var/log/xtss-rights/rights.log
+#   loggers:
+#     "":
+#       handlers:
+#         - console
+#         - file
+#       level: INFO
+#       propagate: true
+#     rights:
+#       handlers:
+#         - console
+#         - file
+#       level: INFO
+#       propagate: false

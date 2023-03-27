@@ -4,7 +4,6 @@ venv*/
 .coverage
 coverage.xml
 htmlcov/
-config.json
 .scannerwork/
 
 # Python byte-compiled / optimized / DLL files
@@ -12,5 +11,5 @@ __pycache__/
 *.py[cod]
 *$py.class
 
-# Copy of files for local docker
-local/files/
+# Configuration file may contain passwords
+/config.yaml
