@@ -11,7 +11,7 @@ This module allows:
     * checking API status
 """
 
-__version__ = '1.1.0'
+__version__ = '1.1.1'
 
 from datetime import datetime
 import logging
