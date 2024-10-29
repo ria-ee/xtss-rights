@@ -12,4 +12,4 @@ psycopg2-binary==2.9.10
 pytz==2024.2
 PyYAML==6.0.2
 six==1.16.0
-Werkzeug==3.0.4
+Werkzeug==3.0.6
