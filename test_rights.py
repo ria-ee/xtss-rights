@@ -1,6 +1,7 @@
 # Disable pylint errors that are not as relevant for tests:
 # pylint: disable=missing-function-docstring missing-module-docstring missing-class-docstring
-# pylint: disable=too-many-lines too-many-public-methods invalid-name too-many-arguments
+# pylint: disable=too-many-lines too-many-public-methods
+# pylint: disable=too-many-arguments too-many-positional-arguments
 
 import json
 from datetime import datetime
