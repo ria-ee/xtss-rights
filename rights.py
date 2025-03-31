@@ -211,7 +211,7 @@ def add_right(cur, **kwargs):
             'valid_to': kwargs['valid_to']})
 
 
-def get_search_rights_sql(only_valid, persons, organizations, rights, valid_days):
+def get_search_rights_sql(only_valid, persons, organizations, rights, days_to_expiration):
     """Get SQL string for search right query"""
     sql_what = """
         select p.code, p.first_name, p.last_name, o.code, o.name,
@@ -238,9 +238,9 @@ def get_search_rights_sql(only_valid, persons, organizations, rights, valid_days
     if rights:
         sql_where += """
             and r.right_type=ANY(%(rights)s)"""
-    if valid_days:
+    if days_to_expiration:
         sql_where += """
-            and EXTRACT(DAY FROM (r.valid_to - current_date)) = %(valid_days)s"""
+            and EXTRACT(DAY FROM (r.valid_to - current_date)) = %(days_to_expiration)s"""
     sql_limit = """
         limit %(limit)s offset %(offset)s"""
 
@@ -253,10 +253,10 @@ def get_search_rights_sql(only_valid, persons, organizations, rights, valid_days
 def search_rights(cur, **kwargs):
     """Search for rights in db
     Required keyword arguments:
-    persons, organizations, rights, only_valid, limit, offset, valid_days
+    persons, organizations, rights, only_valid, limit, offset, days_to_expiration
     """
     sql_query, sql_total = get_search_rights_sql(
-        kwargs['only_valid'], kwargs['persons'], kwargs['organizations'], kwargs['rights'], kwargs['valid_days'])
+        kwargs['only_valid'], kwargs['persons'], kwargs['organizations'], kwargs['rights'], kwargs['days_to_expiration'])
 
     params = {
         'persons': kwargs['persons'], 'organizations': kwargs['organizations'],
@@ -604,7 +604,7 @@ def validate_search_rights_request(json_data):
         'organizations': get_list_of_strings_parameter('organizations', json_data),
         'rights': get_list_of_strings_parameter('rights', json_data),
         'only_valid': get_bool_parameter('only_valid', json_data),
-        'valid_days': get_int_parameter('valid_days', json_data),
+        'days_to_expiration': get_int_parameter('days_to_expiration', json_data),
         'limit': get_int_parameter('limit', json_data),
         'offset': get_int_parameter('offset', json_data)}
 
