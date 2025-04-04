@@ -318,7 +318,7 @@ class MainTestCase(unittest.TestCase):
              '            and r.right_type=ANY(%(rights)s)'),
             rights.get_search_rights_sql(
                 True, ['12345678901', '12345678902'], ['12345678', '12345679'],
-                ['RIGHTS1', 'RIGHTS2']))
+                ['RIGHTS1', 'RIGHTS2'], None))
 
     @patch('rights.get_search_rights_sql', return_value=('SQL1', 'SQL2'))
     def test_search_rights(self, mock_get_search_rights_sql):
@@ -338,7 +338,8 @@ class MainTestCase(unittest.TestCase):
             'persons': ['12345678901', '12345678902'],
             'organizations': ['12345678', '12345679'],
             'rights': ['RIGHTS1', 'RIGHTS2'],
-            'only_valid': True, 'limit': 10, 'offset': 0}
+            'only_valid': True, 'limit': 10, 'offset': 0,
+            'days_to_expiration': 10}
         expected = {
             'limit': 10, 'offset': 0, 'rights': [
                 {
@@ -369,7 +370,7 @@ class MainTestCase(unittest.TestCase):
                 'organizations': ['12345678', '12345679'], 'rights': ['RIGHTS1', 'RIGHTS2'],
                 'limit': 10, 'offset': 0})])
         mock_get_search_rights_sql.assert_called_with(
-            True, ['12345678901', '12345678902'], ['12345678', '12345679'], ['RIGHTS1', 'RIGHTS2'])
+            True, ['12345678901', '12345678902'], ['12345678', '12345679'], ['RIGHTS1', 'RIGHTS2'], 10)
 
     def test_make_response(self):
         with self.app.app_context():
@@ -870,6 +871,7 @@ class MainTestCase(unittest.TestCase):
             'persons': ['12345678901', '12345'],
             'rights': ['RIGHT1', 'XXX'],
             'only_valid': False,
+            'days_to_expiration': 10,
             'limit': 5,
             'offset': 3}
         self.assertEqual(
@@ -877,6 +879,7 @@ class MainTestCase(unittest.TestCase):
                 'limit': 5,
                 'offset': 3,
                 'only_valid': False,
+                'days_to_expiration': 10,
                 'organizations': ['00000000', '00000001'],
                 'persons': ['12345678901', '12345'],
                 'rights': ['RIGHT1', 'XXX']},
@@ -886,12 +889,14 @@ class MainTestCase(unittest.TestCase):
         json_data = {
             'organizations': ['00000000', '00000001'],
             'persons': ['12345678901', '12345'],
-            'rights': ['RIGHT1', 'XXX']}
+            'rights': ['RIGHT1', 'XXX'],
+            'days_to_expiration': 10}
         self.assertEqual(
             {
                 'limit': 100,
                 'offset': 0,
                 'only_valid': True,
+                'days_to_expiration': 10,
                 'organizations': ['00000000', '00000001'],
                 'persons': ['12345678901', '12345'],
                 'rights': ['RIGHT1', 'XXX']},
