@@ -260,7 +260,8 @@ def search_rights(cur, **kwargs):
 
     params = {
         'persons': kwargs['persons'], 'organizations': kwargs['organizations'],
-        'rights': kwargs['rights'], 'limit': kwargs['limit'], 'offset': kwargs['offset']}
+        'rights': kwargs['rights'], 'limit': kwargs['limit'], 'offset': kwargs['offset'],
+        'days_to_expiration': kwargs['days_to_expiration']}
     rights = []
 
     LOGGER.debug('SQL: %s', cur.mogrify(sql_query, params).decode('utf-8'))
