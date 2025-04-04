@@ -364,11 +364,11 @@ class MainTestCase(unittest.TestCase):
             call('SQL1', {
                 'persons': ['12345678901', '12345678902'],
                 'organizations': ['12345678', '12345679'], 'rights': ['RIGHTS1', 'RIGHTS2'],
-                'limit': 10, 'offset': 0}),
+                'limit': 10, 'offset': 0, 'days_to_expiration': 10}),
             call('SQL2', {
                 'persons': ['12345678901', '12345678902'],
                 'organizations': ['12345678', '12345679'], 'rights': ['RIGHTS1', 'RIGHTS2'],
-                'limit': 10, 'offset': 0})])
+                'limit': 10, 'offset': 0, 'days_to_expiration': 10})])
         mock_get_search_rights_sql.assert_called_with(
             True, ['12345678901', '12345678902'], ['12345678', '12345679'], ['RIGHTS1', 'RIGHTS2'], 10)
 
