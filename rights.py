@@ -240,7 +240,7 @@ def get_search_rights_sql(only_valid, persons, organizations, rights, days_to_ex
             and r.right_type=ANY(%(rights)s)"""
     if days_to_expiration:
         sql_where += """
-            and EXTRACT(DAY FROM (CAST(r.valid_to AS DATE) - current_date)) = %(days_to_expiration)s"""
+            and (DATE(r.valid_to) - current_date) = %(days_to_expiration)s"""
     sql_limit = """
         limit %(limit)s offset %(offset)s"""
 
