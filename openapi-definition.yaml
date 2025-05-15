@@ -2,7 +2,7 @@
 openapi: 3.0.0
 info:
   description: Rights API
-  version: "1.0.0"
+  version: "1.2.0"
   title: Rights API
   contact:
     email: vitali.stupin@ria.ee
@@ -93,7 +93,7 @@ paths:
                   }
                 }
               reqMicro:
-                summary: Microsecond precission
+                summary: Microsecond precision
                 value: {
                   "organization": {
                     "code": "00000000",
@@ -255,6 +255,17 @@ paths:
                   "persons": ["12345678901", "12345"],
                   "rights": ["RIGHT1", "XXX"],
                   "only_valid": false,
+                  "limit": 5,
+                  "offset": 2
+                }
+              req_expiration:
+                summary: Example request parameters to query rights that expire in exactly 10 days
+                value: {
+                  "organizations": ["00000000", "00000001"],
+                  "persons": ["12345678901", "12345"],
+                  "rights": ["RIGHT1", "XXX"],
+                  "only_valid": true,
+                  "days_to_expiration": 10,
                   "limit": 5,
                   "offset": 2
                 }
@@ -475,6 +486,10 @@ components:
           type: boolean
           example: false
           default: true
+        days_to_expiration:
+          description: If set, then return only rights that expire in set amount of days
+          type: integer
+          example: 10
         limit:
           type: integer
           example: 10

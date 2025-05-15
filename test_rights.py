@@ -303,6 +303,7 @@ class MainTestCase(unittest.TestCase):
              '            and p.code=ANY(%(persons)s)\n'
              '            and o.code=ANY(%(organizations)s)\n'
              '            and r.right_type=ANY(%(rights)s)\n'
+             '            and (DATE(r.valid_to) - current_date) = %(days_to_expiration)s\n'
              '        limit %(limit)s offset %(offset)s',
              '\n        select count(1)\n'
              '        from rights.right r\n'
@@ -315,10 +316,11 @@ class MainTestCase(unittest.TestCase):
              "day')>current_timestamp\n"
              '            and p.code=ANY(%(persons)s)\n'
              '            and o.code=ANY(%(organizations)s)\n'
-             '            and r.right_type=ANY(%(rights)s)'),
+             '            and r.right_type=ANY(%(rights)s)\n'
+             '            and (DATE(r.valid_to) - current_date) = %(days_to_expiration)s'),
             rights.get_search_rights_sql(
                 True, ['12345678901', '12345678902'], ['12345678', '12345679'],
-                ['RIGHTS1', 'RIGHTS2'], None))
+                ['RIGHTS1', 'RIGHTS2'], 10))
 
     @patch('rights.get_search_rights_sql', return_value=('SQL1', 'SQL2'))
     def test_search_rights(self, mock_get_search_rights_sql):
@@ -370,7 +372,8 @@ class MainTestCase(unittest.TestCase):
                 'organizations': ['12345678', '12345679'], 'rights': ['RIGHTS1', 'RIGHTS2'],
                 'limit': 10, 'offset': 0, 'days_to_expiration': 10})])
         mock_get_search_rights_sql.assert_called_with(
-            True, ['12345678901', '12345678902'], ['12345678', '12345679'], ['RIGHTS1', 'RIGHTS2'], 10)
+            True, ['12345678901', '12345678902'], ['12345678', '12345679'], ['RIGHTS1', 'RIGHTS2'],
+            10)
 
     def test_make_response(self):
         with self.app.app_context():

@@ -11,7 +11,7 @@ This module allows:
     * checking API status
 """
 
-__version__ = '1.1.3'
+__version__ = '1.2.0'
 
 from datetime import datetime
 import logging
@@ -256,7 +256,8 @@ def search_rights(cur, **kwargs):
     persons, organizations, rights, only_valid, limit, offset, days_to_expiration
     """
     sql_query, sql_total = get_search_rights_sql(
-        kwargs['only_valid'], kwargs['persons'], kwargs['organizations'], kwargs['rights'], kwargs['days_to_expiration'])
+        kwargs['only_valid'], kwargs['persons'], kwargs['organizations'], kwargs['rights'],
+        kwargs['days_to_expiration'])
 
     params = {
         'persons': kwargs['persons'], 'organizations': kwargs['organizations'],
