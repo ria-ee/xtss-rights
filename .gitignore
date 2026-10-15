@@ -13,3 +13,6 @@ __pycache__/
 
 # Configuration file may contain passwords
 /config.yaml
+
+# Downloaded JDBC driver for local Liquibase setup
+/local/postgresql.jar

@@ -11,12 +11,13 @@ This module allows:
     * checking API status
 """
 
-__version__ = '1.2.0'
+__version__ = '1.2.1'
 
 from datetime import datetime
 import logging
 import logging.config
 import os
+import re
 import uuid
 from flask import Flask, request, jsonify
 from flask_restful import Api, Resource
@@ -40,6 +41,23 @@ TIME_FORMAT_DB = '%Y-%m-%d %H:%M:%S'
 DB_ERROR_MSG = 'Unclassified database error'
 INCOMING_REQUEST_MSG = 'Incoming request'
 CLIENT_DN_MSG = 'Client DN'
+# Allows B3 trace ids (16 or 32 lowercase hex chars) as well as UUIDs (36 chars)
+TRACE_ID_RE = re.compile(r'^[0-9a-fA-F-]{1,36}$')
+SANITIZE_LOG_MAX_LENGTH = 1024
+
+
+def _sanitize_log(value):
+    """Strip CR/LF from a value before logging it, to prevent log forging
+
+    Also truncates the value to SANITIZE_LOG_MAX_LENGTH characters.
+    """
+    sanitized = str(value).replace('\r', '').replace('\n', '')
+    return sanitized[:SANITIZE_LOG_MAX_LENGTH]
+
+
+def _log_db_error(log_header, err):
+    """Log a database error consistently across request handlers"""
+    LOGGER.error('%sDB_ERROR: %s: %s', log_header, DB_ERROR_MSG, _sanitize_log(err))
 
 
 def load_config(config_file):
@@ -296,9 +314,9 @@ def make_response(data, log_header, log_level='info'):
             {'code': data['code'], 'msg': data['msg'], 'response': data['response']})
     response.status_code = data['http_status']
     if log_level == 'debug':
-        LOGGER.debug('%sResponse: %s', log_header, data)
+        LOGGER.debug('%sResponse: %s', log_header, _sanitize_log(data))
     else:
-        LOGGER.info('%sResponse: %s', log_header, data)
+        LOGGER.info('%sResponse: %s', log_header, _sanitize_log(data))
     return response
 
 
@@ -323,7 +341,7 @@ def get_required_parameter(name, json_data, log_header):
 
     LOGGER.warning(
         '%sMISSING_PARAMETER: Missing parameter "%s" '
-        '(Request: %s)', log_header, name, json_data)
+        '(Request: %s)', log_header, name, _sanitize_log(json_data))
     return None, {
         'http_status': 400, 'code': 'MISSING_PARAMETER',
         'msg': f'Missing parameter "{name}"'}
@@ -337,7 +355,7 @@ def check_required_dict_item(dict_name, item_name, json_data, log_header):
     if not json_data.get(dict_name) or not json_data.get(dict_name).get(item_name):
         LOGGER.warning(
             '%sMISSING_PARAMETER: Missing parameter "%s->%s" '
-            '(Request: %s)', log_header, dict_name, item_name, json_data)
+            '(Request: %s)', log_header, dict_name, item_name, _sanitize_log(json_data))
         return {
             'http_status': 400, 'code': 'MISSING_PARAMETER',
             'msg': f'Missing parameter "{dict_name}->{item_name}"'}
@@ -401,7 +419,7 @@ def parse_timestamp(timestamp, json_data, log_header):
         except (TypeError, ValueError):
             LOGGER.warning(
                 '%sINVALID_PARAMETER: Unrecognized timestamp "%s" '
-                '(Request: %s)', log_header, timestamp, json_data)
+                '(Request: %s)', log_header, _sanitize_log(timestamp), _sanitize_log(json_data))
             return None, {
                 'http_status': 400, 'code': 'INVALID_PARAMETER',
                 'msg': f'Unrecognized timestamp: "{timestamp}"'}
@@ -420,7 +438,7 @@ def check_timestamp(timestamp, json_data, log_header):
     if isinstance(timestamp, datetime) and timestamp < get_datetime_now():
         LOGGER.warning(
             '%sINVALID_PARAMETER: timestamps must be in the future '
-            '(Request: %s)', log_header, json_data)
+            '(Request: %s)', log_header, _sanitize_log(json_data))
         return {
             'http_status': 400, 'code': 'INVALID_PARAMETER',
             'msg': 'Timestamps must be in the future'}
@@ -437,7 +455,7 @@ def check_interval(valid_from, valid_to, json_data, log_header):
             and valid_from > valid_to:
         LOGGER.warning(
             '%sINVALID_PARAMETER: "valid_from" must be smaller then "valid_to" '
-            '(Request: %s)', log_header, json_data)
+            '(Request: %s)', log_header, _sanitize_log(json_data))
         return {
             'http_status': 400, 'code': 'INVALID_PARAMETER',
             'msg': '"valid_from" must be smaller then "valid_to"'}
@@ -737,7 +755,8 @@ def check_client(config, client_dn):
 
 def incorrect_client(client_dn, log_header):
     """Return error response when client is not allowed"""
-    LOGGER.error('%sFORBIDDEN: Client certificate is not allowed: %s', log_header, client_dn)
+    LOGGER.error(
+        '%sFORBIDDEN: Client certificate is not allowed: %s', log_header, _sanitize_log(client_dn))
     return make_response({
         'http_status': 403, 'code': 'FORBIDDEN',
         'msg': f'Client certificate is not allowed: {client_dn}'}, log_header)
@@ -760,7 +779,7 @@ def test_db(conf, log_header):
 def get_log_header(method):
     """Get log header string"""
     trace_id = request.headers.get('X-B3-TraceId')
-    if trace_id:
+    if trace_id and TRACE_ID_RE.match(trace_id):
         return f'[{method} {trace_id},{uuid.uuid4()}] '
 
     return f'[{method}] '
@@ -777,8 +796,8 @@ class SetRightApi(Resource):  # pylint: disable=too-few-public-methods
         json_data = request.get_json(force=True)
         client_dn = request.headers.get('X-Ssl-Client-S-Dn')
 
-        LOGGER.info('%s%s: %s', log_header, INCOMING_REQUEST_MSG, json_data)
-        LOGGER.info('%s%s: %s', log_header, CLIENT_DN_MSG, client_dn)
+        LOGGER.info('%s%s: %s', log_header, INCOMING_REQUEST_MSG, _sanitize_log(json_data))
+        LOGGER.info('%s%s: %s', log_header, CLIENT_DN_MSG, _sanitize_log(client_dn))
 
         if not check_client(self.config, client_dn):
             return incorrect_client(client_dn, log_header)
@@ -786,7 +805,7 @@ class SetRightApi(Resource):  # pylint: disable=too-few-public-methods
         try:
             response = process_set_right(self.config, json_data, log_header)
         except psycopg2.Error as err:
-            LOGGER.error('%sDB_ERROR: %s: %s', log_header, DB_ERROR_MSG, err)
+            _log_db_error(log_header, err)
             response = {
                 'http_status': 500, 'code': 'DB_ERROR',
                 'msg': DB_ERROR_MSG}
@@ -805,8 +824,8 @@ class RevokeRightApi(Resource):  # pylint: disable=too-few-public-methods
         json_data = request.get_json(force=True)
         client_dn = request.headers.get('X-Ssl-Client-S-Dn')
 
-        LOGGER.info('%s%s: %s', log_header, INCOMING_REQUEST_MSG, json_data)
-        LOGGER.info('%s%s: %s', log_header, CLIENT_DN_MSG, client_dn)
+        LOGGER.info('%s%s: %s', log_header, INCOMING_REQUEST_MSG, _sanitize_log(json_data))
+        LOGGER.info('%s%s: %s', log_header, CLIENT_DN_MSG, _sanitize_log(client_dn))
 
         if not check_client(self.config, client_dn):
             return incorrect_client(client_dn, log_header)
@@ -814,7 +833,7 @@ class RevokeRightApi(Resource):  # pylint: disable=too-few-public-methods
         try:
             response = process_revoke_right(self.config, json_data, log_header)
         except psycopg2.Error as err:
-            LOGGER.error('%sDB_ERROR: %s: %s', log_header, DB_ERROR_MSG, err)
+            _log_db_error(log_header, err)
             response = {
                 'http_status': 500, 'code': 'DB_ERROR',
                 'msg': DB_ERROR_MSG}
@@ -833,8 +852,8 @@ class RightsApi(Resource):  # pylint: disable=too-few-public-methods
         json_data = request.get_json(force=True)
         client_dn = request.headers.get('X-Ssl-Client-S-Dn')
 
-        LOGGER.info('%s%s: %s', log_header, INCOMING_REQUEST_MSG, json_data)
-        LOGGER.info('%s%s: %s', log_header, CLIENT_DN_MSG, client_dn)
+        LOGGER.info('%s%s: %s', log_header, INCOMING_REQUEST_MSG, _sanitize_log(json_data))
+        LOGGER.info('%s%s: %s', log_header, CLIENT_DN_MSG, _sanitize_log(client_dn))
 
         if not check_client(self.config, client_dn):
             return incorrect_client(client_dn, log_header)
@@ -842,7 +861,7 @@ class RightsApi(Resource):  # pylint: disable=too-few-public-methods
         try:
             response = process_search_rights(self.config, json_data, log_header)
         except psycopg2.Error as err:
-            LOGGER.error('%sDB_ERROR: %s: %s', log_header, DB_ERROR_MSG, err)
+            _log_db_error(log_header, err)
             response = {
                 'http_status': 500, 'code': 'DB_ERROR',
                 'msg': DB_ERROR_MSG}
@@ -862,8 +881,8 @@ class PersonApi(Resource):  # pylint: disable=too-few-public-methods
         json_data = request.get_json(force=True)
         client_dn = request.headers.get('X-Ssl-Client-S-Dn')
 
-        LOGGER.info('%s%s: %s', log_header, INCOMING_REQUEST_MSG, json_data)
-        LOGGER.info('%s%s: %s', log_header, CLIENT_DN_MSG, client_dn)
+        LOGGER.info('%s%s: %s', log_header, INCOMING_REQUEST_MSG, _sanitize_log(json_data))
+        LOGGER.info('%s%s: %s', log_header, CLIENT_DN_MSG, _sanitize_log(client_dn))
 
         if not check_client(self.config, client_dn):
             return incorrect_client(client_dn, log_header)
@@ -871,7 +890,7 @@ class PersonApi(Resource):  # pylint: disable=too-few-public-methods
         try:
             response = process_set_person(self.config, json_data, log_header)
         except psycopg2.Error as err:
-            LOGGER.error('%sDB_ERROR: %s: %s', log_header, DB_ERROR_MSG, err)
+            _log_db_error(log_header, err)
             response = {
                 'http_status': 500, 'code': 'DB_ERROR',
                 'msg': DB_ERROR_MSG}
@@ -890,8 +909,8 @@ class OrganizationApi(Resource):  # pylint: disable=too-few-public-methods
         json_data = request.get_json(force=True)
         client_dn = request.headers.get('X-Ssl-Client-S-Dn')
 
-        LOGGER.info('%s%s: %s', log_header, INCOMING_REQUEST_MSG, json_data)
-        LOGGER.info('%s%s: %s', log_header, CLIENT_DN_MSG, client_dn)
+        LOGGER.info('%s%s: %s', log_header, INCOMING_REQUEST_MSG, _sanitize_log(json_data))
+        LOGGER.info('%s%s: %s', log_header, CLIENT_DN_MSG, _sanitize_log(client_dn))
 
         if not check_client(self.config, client_dn):
             return incorrect_client(client_dn, log_header)
@@ -899,7 +918,7 @@ class OrganizationApi(Resource):  # pylint: disable=too-few-public-methods
         try:
             response = process_set_organization(self.config, json_data, log_header)
         except psycopg2.Error as err:
-            LOGGER.error('%sDB_ERROR: %s: %s', log_header, DB_ERROR_MSG, err)
+            _log_db_error(log_header, err)
             response = {
                 'http_status': 500, 'code': 'DB_ERROR',
                 'msg': DB_ERROR_MSG}
@@ -920,7 +939,7 @@ class StatusApi(Resource):  # pylint: disable=too-few-public-methods
         try:
             response = test_db(self.config, log_header)
         except psycopg2.Error as err:
-            LOGGER.error('%sDB_ERROR: %s: %s', log_header, DB_ERROR_MSG, err)
+            _log_db_error(log_header, err)
             response = {
                 'http_status': 500, 'code': 'DB_ERROR',
                 'msg': DB_ERROR_MSG}

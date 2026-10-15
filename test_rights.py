@@ -2,6 +2,7 @@
 # pylint: disable=missing-function-docstring missing-module-docstring missing-class-docstring
 # pylint: disable=too-many-lines too-many-public-methods
 # pylint: disable=too-many-arguments too-many-positional-arguments
+# pylint: disable=protected-access
 
 import json
 from datetime import datetime
@@ -278,7 +279,7 @@ class MainTestCase(unittest.TestCase):
             'person_id': 1234, 'organization_id': 123,
             'right_type': 'RIGHT1', 'valid_from': '2020-01-01',
             'valid_to': '2020-11-01'}
-        self.assertEqual(None, rights.add_right(cur, **kwargs))
+        self.assertIsNone(rights.add_right(cur, **kwargs))
         cur.execute.assert_called_with(
             '\n            insert into rights.right (person_id, organization_id, '
             'right_type, valid_from, valid_to)'
@@ -415,7 +416,7 @@ class MainTestCase(unittest.TestCase):
                     "'RESPONSE', 'http_status': 200}"], cm.output)
 
     def test_validate_config(self):
-        self.assertEqual(None, rights.validate_config(self.config, 'HEADER: '))
+        self.assertIsNone(rights.validate_config(self.config, 'HEADER: '))
 
     def test_validate_config_no_field(self):
         field_list = ['db_host', 'db_port', 'db_db', 'db_user']
@@ -450,8 +451,7 @@ class MainTestCase(unittest.TestCase):
                 cm.output)
 
     def test_check_required_dict_item(self):
-        self.assertEqual(
-            None,
+        self.assertIsNone(
             rights.check_required_dict_item('x', 'a', {'x': {'a': 'b'}}, 'HEADER: '))
 
     def test_check_required_dict_item_missing(self):
@@ -495,18 +495,15 @@ class MainTestCase(unittest.TestCase):
             rights.get_int_parameter('x', {'x': 123}))
 
     def test_get_int_parameter_missing(self):
-        self.assertEqual(
-            None,
+        self.assertIsNone(
             rights.get_int_parameter('z', {'x': 123}))
 
     def test_get_bool_parameter(self):
-        self.assertEqual(
-            True,
+        self.assertTrue(
             rights.get_bool_parameter('x', {'x': True}))
 
     def test_get_bool_parameter_missing(self):
-        self.assertEqual(
-            None,
+        self.assertIsNone(
             rights.get_bool_parameter('z', {'x': True}))
 
     def test_parse_timestamp(self):
@@ -542,8 +539,7 @@ class MainTestCase(unittest.TestCase):
 
     @patch('rights.get_datetime_now', return_value=datetime(2019, 8, 1, 0, 0))
     def test_check_timestamp(self, datetime_mock):
-        self.assertEqual(
-            None,
+        self.assertIsNone(
             rights.check_timestamp(datetime(2019, 8, 29, 14, 0), {'x': 'y'}, 'HEADER: '))
         datetime_mock.assert_called_once()
 
@@ -564,16 +560,14 @@ class MainTestCase(unittest.TestCase):
 
     @patch('rights.get_datetime_now', return_value=datetime(2019, 8, 1, 0, 0))
     def test_check_interval(self, _):
-        self.assertEqual(
-            None,
+        self.assertIsNone(
             rights.check_interval(
                 datetime(2019, 8, 20, 14, 0), datetime(2019, 8, 29, 14, 0), {'x': 'y'}, 'HEADER: '))
 
     # Empty timestamps are accepted
     @patch('rights.get_datetime_now', return_value=datetime(2019, 8, 1, 0, 0))
     def test_check_interval_empty(self, _):
-        self.assertEqual(
-            None,
+        self.assertIsNone(
             rights.check_interval(
                 None, None, {'x': 'y'}, 'HEADER: '))
 
@@ -1071,32 +1065,26 @@ class MainTestCase(unittest.TestCase):
 
     def test_check_client(self):
         # Client allowed
-        self.assertEqual(
-            True,
+        self.assertTrue(
             rights.check_client(self.config, 'OU=xtss,O=RIA,C=EE'))
         # Client not allowed
-        self.assertEqual(
-            False,
+        self.assertFalse(
             rights.check_client(self.config, 'OU=xtss2,O=RIA,C=EE'))
         # No client
-        self.assertEqual(
-            False,
+        self.assertFalse(
             rights.check_client(self.config, None))
         # Invalid config ('allowed' is not 'list')
-        self.assertEqual(
-            False,
+        self.assertFalse(
             rights.check_client(
                 {
                     'allow_all': False,
                     'allowed': 'OU=xtss,O=RIA,C=EE'},
                 'OU=xtss,O=RIA,C=EE'))
         # All clients allowed
-        self.assertEqual(
-            True,
+        self.assertTrue(
             rights.check_client({'allow_all': True}, 'OU=xtss,O=RIA,C=EE'))
         # No configuration
-        self.assertEqual(
-            False,
+        self.assertFalse(
             rights.check_client({}, 'OU=xtss,O=RIA,C=EE'))
 
     @patch('rights.make_response', return_value='ERR')
@@ -1124,12 +1112,57 @@ class MainTestCase(unittest.TestCase):
     def test_test_db_no_conf(self, _):
         self.assertEqual('ERR', rights.test_db(self.config, 'HEADER: '))
 
+    def test_sanitize_log(self):
+        self.assertEqual('abc', rights._sanitize_log('abc'))
+        self.assertEqual('abcdef', rights._sanitize_log('ab\rc\nd\r\nef'))
+        self.assertEqual('123', rights._sanitize_log(123))
+
+    def test_sanitize_log_truncates_long_value(self):
+        value = 'a' * (rights.SANITIZE_LOG_MAX_LENGTH + 976)
+        sanitized = rights._sanitize_log(value)
+        self.assertEqual(rights.SANITIZE_LOG_MAX_LENGTH, len(sanitized))
+        self.assertEqual('a' * rights.SANITIZE_LOG_MAX_LENGTH, sanitized)
+
+    @patch('rights.SANITIZE_LOG_MAX_LENGTH', 1)
+    def test_sanitize_log_does_not_split_multibyte_characters(self):
+        # With a limit of 1 character, byte-based truncation of this 3-byte
+        # character would cut it in half and produce invalid/corrupted UTF-8.
+        sanitized = rights._sanitize_log('€€')
+
+        self.assertEqual('€', sanitized)
+
     @patch('uuid.uuid4', return_value='UUID4')
     def test_get_log_header(self, _):
         with self.app.test_request_context('url'):
             self.assertEqual('[METHOD] ', rights.get_log_header('METHOD'))
+        with self.app.test_request_context(
+                'url', headers={'X-B3-TraceId': '463ac35c9f6413ad48485a3953bb6124'}):
+            self.assertEqual(
+                '[METHOD 463ac35c9f6413ad48485a3953bb6124,UUID4] ',
+                rights.get_log_header('METHOD'))
+        with self.app.test_request_context(
+                'url', headers={'X-B3-TraceId': '463ac35c9f6413ad'}):
+            self.assertEqual(
+                '[METHOD 463ac35c9f6413ad,UUID4] ', rights.get_log_header('METHOD'))
+        with self.app.test_request_context(
+                'url', headers={'X-B3-TraceId': '463ac35c-9f64-13ad-4848-5a3953bb6124'}):
+            self.assertEqual(
+                '[METHOD 463ac35c-9f64-13ad-4848-5a3953bb6124,UUID4] ',
+                rights.get_log_header('METHOD'))
+
+    @patch('uuid.uuid4', return_value='UUID4')
+    def test_get_log_header_invalid_trace_id(self, _):
+        # Wrong length
         with self.app.test_request_context('url', headers={'X-B3-TraceId': 'TRACE_ID'}):
-            self.assertEqual('[METHOD TRACE_ID,UUID4] ', rights.get_log_header('METHOD'))
+            self.assertEqual('[METHOD] ', rights.get_log_header('METHOD'))
+        # Non alnum characters (potential log injection)
+        with self.app.test_request_context(
+                'url', headers={'X-B3-TraceId': '463ac35c9f6413ad48485a3953bb6,1'}):
+            self.assertEqual('[METHOD] ', rights.get_log_header('METHOD'))
+        # Too long (over UUID length), even though all characters are allowed
+        with self.app.test_request_context(
+                'url', headers={'X-B3-TraceId': '463ac35c-9f64-13ad-4848-5a3953bb6124-extra'}):
+            self.assertEqual('[METHOD] ', rights.get_log_header('METHOD'))
 
     @patch('rights.check_client', return_value=False)
     def test_set_right_incorrect_client(self, mock_check_client):
