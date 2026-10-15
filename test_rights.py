@@ -5,12 +5,14 @@
 # pylint: disable=protected-access
 
 import json
-from datetime import datetime
 import unittest
-from unittest.mock import patch, MagicMock, mock_open, call
+from datetime import datetime
+from unittest.mock import MagicMock, call, mock_open, patch
+
+import psycopg2
 from flask import Flask, jsonify
 from flask_restful import Api
-import psycopg2
+
 import rights
 
 
@@ -49,14 +51,15 @@ class MainTestCase(unittest.TestCase):
             self.assertEqual({'allow_all': True}, rights.load_config('FILENAME'))
             m.assert_called_once_with('FILENAME', 'r', encoding='utf-8')
         # Invalid json
-        with patch('builtins.open', mock_open(read_data='INVALID_YAML: {}x')) as m:
-            with self.assertLogs(rights.LOGGER, level='INFO') as cm:
-                self.assertEqual({}, rights.load_config('FILENAME'))
-                m.assert_called_once_with('FILENAME', 'r', encoding='utf-8')
-                self.assertIn(
-                    'INFO:rights:Loading configuration from file "FILENAME"', cm.output)
-                self.assertIn(
-                    'ERROR:rights:Invalid YAML configuration file "FILENAME"', cm.output[1])
+        with (
+                patch('builtins.open', mock_open(read_data='INVALID_YAML: {}x')) as m,
+                self.assertLogs(rights.LOGGER, level='INFO') as cm):
+            self.assertEqual({}, rights.load_config('FILENAME'))
+            m.assert_called_once_with('FILENAME', 'r', encoding='utf-8')
+            self.assertIn(
+                'INFO:rights:Loading configuration from file "FILENAME"', cm.output)
+            self.assertIn(
+                'ERROR:rights:Invalid YAML configuration file "FILENAME"', cm.output[1])
         # Invalid file
         with patch('builtins.open', mock_open()) as m:
             m.side_effect = IOError
@@ -291,7 +294,7 @@ class MainTestCase(unittest.TestCase):
 
     def test_get_search_rights_sql(self):
         self.assertEqual(
-            ('\n        select p.code, p.first_name, p.last_name, o.code, o.name,\n'
+            (('\n        select p.code, p.first_name, p.last_name, o.code, o.name,\n'
              '            r.right_type, r.valid_from, r.valid_to, r.revoked\n'
              '        from rights.right r\n'
              '        join rights.person p on (p.id=r.person_id)\n'
@@ -305,8 +308,8 @@ class MainTestCase(unittest.TestCase):
              '            and o.code=ANY(%(organizations)s)\n'
              '            and r.right_type=ANY(%(rights)s)\n'
              '            and (DATE(r.valid_to) - current_date) = %(days_to_expiration)s\n'
-             '        limit %(limit)s offset %(offset)s',
-             '\n        select count(1)\n'
+             '        limit %(limit)s offset %(offset)s'),
+             ('\n        select count(1)\n'
              '        from rights.right r\n'
              '        join rights.person p on (p.id=r.person_id)\n'
              '        join rights.organization o on (o.id=r.organization_id)\n'
@@ -318,7 +321,7 @@ class MainTestCase(unittest.TestCase):
              '            and p.code=ANY(%(persons)s)\n'
              '            and o.code=ANY(%(organizations)s)\n'
              '            and r.right_type=ANY(%(rights)s)\n'
-             '            and (DATE(r.valid_to) - current_date) = %(days_to_expiration)s'),
+             '            and (DATE(r.valid_to) - current_date) = %(days_to_expiration)s')),
             rights.get_search_rights_sql(
                 True, ['12345678901', '12345678902'], ['12345678', '12345679'],
                 ['RIGHTS1', 'RIGHTS2'], 10))
@@ -377,43 +380,40 @@ class MainTestCase(unittest.TestCase):
             10)
 
     def test_make_response(self):
-        with self.app.app_context():
-            with self.assertLogs(rights.LOGGER, level='INFO') as cm:
-                expected_json = {'code': 'CODE', 'msg': 'MSG', 'response': 'RESPONSE'}
-                response = rights.make_response(
-                    {'code': 'CODE', 'msg': 'MSG', 'response': 'RESPONSE', 'http_status': 200},
-                    'HEADER: ')
-                self.assertEqual(response.status_code, 200)
-                self.assertEqual(expected_json, response.get_json())
-                self.assertEqual([
-                    "INFO:rights:HEADER: Response: {'code': 'CODE', 'msg': 'MSG', 'response': "
-                    "'RESPONSE', 'http_status': 200}"], cm.output)
+        with self.app.app_context(), self.assertLogs(rights.LOGGER, level='INFO') as cm:
+            expected_json = {'code': 'CODE', 'msg': 'MSG', 'response': 'RESPONSE'}
+            response = rights.make_response(
+                {'code': 'CODE', 'msg': 'MSG', 'response': 'RESPONSE', 'http_status': 200},
+                'HEADER: ')
+            self.assertEqual(response.status_code, 200)
+            self.assertEqual(expected_json, response.get_json())
+            self.assertEqual([
+                ("INFO:rights:HEADER: Response: {'code': 'CODE', 'msg': 'MSG', 'response': "
+                "'RESPONSE', 'http_status': 200}")], cm.output)
 
     def test_make_response_no_response(self):
-        with self.app.app_context():
-            with self.assertLogs(rights.LOGGER, level='INFO') as cm:
-                expected_json = {'code': 'CODE', 'msg': 'MSG'}
-                response = rights.make_response(
-                    {'code': 'CODE', 'msg': 'MSG', 'http_status': 200},
-                    'HEADER: ')
-                self.assertEqual(response.status_code, 200)
-                self.assertEqual(expected_json, response.get_json())
-                self.assertEqual([
-                    "INFO:rights:HEADER: Response: {'code': 'CODE', 'msg': 'MSG', "
-                    "'http_status': 200}"], cm.output)
+        with self.app.app_context(), self.assertLogs(rights.LOGGER, level='INFO') as cm:
+            expected_json = {'code': 'CODE', 'msg': 'MSG'}
+            response = rights.make_response(
+                {'code': 'CODE', 'msg': 'MSG', 'http_status': 200},
+                'HEADER: ')
+            self.assertEqual(response.status_code, 200)
+            self.assertEqual(expected_json, response.get_json())
+            self.assertEqual([
+                ("INFO:rights:HEADER: Response: {'code': 'CODE', 'msg': 'MSG', "
+                "'http_status': 200}")], cm.output)
 
     def test_make_response_debug(self):
-        with self.app.app_context():
-            with self.assertLogs(rights.LOGGER, level='DEBUG') as cm:
-                expected_json = {'code': 'CODE', 'msg': 'MSG', 'response': 'RESPONSE'}
-                response = rights.make_response(
-                    {'code': 'CODE', 'msg': 'MSG', 'response': 'RESPONSE', 'http_status': 200},
-                    'HEADER: ', log_level='debug')
-                self.assertEqual(response.status_code, 200)
-                self.assertEqual(expected_json, response.get_json())
-                self.assertEqual([
-                    "DEBUG:rights:HEADER: Response: {'code': 'CODE', 'msg': 'MSG', 'response': "
-                    "'RESPONSE', 'http_status': 200}"], cm.output)
+        with self.app.app_context(), self.assertLogs(rights.LOGGER, level='DEBUG') as cm:
+            expected_json = {'code': 'CODE', 'msg': 'MSG', 'response': 'RESPONSE'}
+            response = rights.make_response(
+                {'code': 'CODE', 'msg': 'MSG', 'response': 'RESPONSE', 'http_status': 200},
+                'HEADER: ', log_level='debug')
+            self.assertEqual(response.status_code, 200)
+            self.assertEqual(expected_json, response.get_json())
+            self.assertEqual([
+                ("DEBUG:rights:HEADER: Response: {'code': 'CODE', 'msg': 'MSG', 'response': "
+                "'RESPONSE', 'http_status': 200}")], cm.output)
 
     def test_validate_config(self):
         self.assertIsNone(rights.validate_config(self.config, 'HEADER: '))
@@ -446,8 +446,8 @@ class MainTestCase(unittest.TestCase):
                 rights.get_required_parameter('z', {'x': 'y', 'a': 'b'}, 'HEADER: '))
             self.assertEqual(
                 [
-                    'WARNING:rights:HEADER: MISSING_PARAMETER: Missing parameter "z" (Request: '
-                    "{'x': 'y', 'a': 'b'})"],
+                    ('WARNING:rights:HEADER: MISSING_PARAMETER: Missing parameter "z" (Request: '
+                    "{'x': 'y', 'a': 'b'})")],
                 cm.output)
 
     def test_check_required_dict_item(self):
@@ -463,8 +463,8 @@ class MainTestCase(unittest.TestCase):
                 rights.check_required_dict_item('x', 'z', {'x': {'a': 'b'}}, 'HEADER: '))
             self.assertEqual(
                 [
-                    'WARNING:rights:HEADER: MISSING_PARAMETER: Missing parameter "x->z" (Request: '
-                    "{'x': {'a': 'b'}})"],
+                    ('WARNING:rights:HEADER: MISSING_PARAMETER: Missing parameter "x->z" (Request: '
+                    "{'x': {'a': 'b'}})")],
                 cm.output)
 
     def test_get_dict_parameter(self):
@@ -530,8 +530,8 @@ class MainTestCase(unittest.TestCase):
                 rights.parse_timestamp('invalid_timestamp', {'x': 'y'}, 'HEADER: '))
             self.assertEqual(
                 [
-                    'WARNING:rights:HEADER: INVALID_PARAMETER: Unrecognized timestamp '
-                    '"invalid_timestamp" (Request: {\'x\': \'y\'})'],
+                    ('WARNING:rights:HEADER: INVALID_PARAMETER: Unrecognized timestamp '
+                    '"invalid_timestamp" (Request: {\'x\': \'y\'})')],
                 cm.output)
 
     def test_get_datetime_now(self):
@@ -553,8 +553,8 @@ class MainTestCase(unittest.TestCase):
                 rights.check_timestamp(datetime(2019, 8, 29, 14, 0), {'x': 'y'}, 'HEADER: '))
             self.assertEqual(
                 [
-                    'WARNING:rights:HEADER: INVALID_PARAMETER: timestamps must be in the future '
-                    "(Request: {'x': 'y'})"],
+                    ('WARNING:rights:HEADER: INVALID_PARAMETER: timestamps must be in the future '
+                    "(Request: {'x': 'y'})")],
                 cm.output)
             datetime_mock.assert_called_once()
 
@@ -584,8 +584,8 @@ class MainTestCase(unittest.TestCase):
                     datetime(2019, 8, 20, 14, 0), {'x': 'y'}, 'HEADER: '))
             self.assertEqual(
                 [
-                    'WARNING:rights:HEADER: INVALID_PARAMETER: "valid_from" must be smaller then '
-                    '"valid_to" (Request: {\'x\': \'y\'})'],
+                    ('WARNING:rights:HEADER: INVALID_PARAMETER: "valid_from" must be smaller then '
+                    '"valid_to" (Request: {\'x\': \'y\'})')],
                 cm.output)
 
     @patch('rights.get_datetime_now', return_value=datetime(2019, 8, 25, 0, 0))
@@ -601,8 +601,8 @@ class MainTestCase(unittest.TestCase):
                     datetime(2019, 8, 29, 14, 0), {'x': 'y'}, 'HEADER: '))
             self.assertEqual(
                 [
-                    'WARNING:rights:HEADER: INVALID_PARAMETER: timestamps must be in the future '
-                    "(Request: {'x': 'y'})"],
+                    ('WARNING:rights:HEADER: INVALID_PARAMETER: timestamps must be in the future '
+                    "(Request: {'x': 'y'})")],
                 cm.output)
 
     @patch('rights.get_datetime_now', return_value=datetime(2019, 9, 1, 0, 0))
@@ -618,8 +618,8 @@ class MainTestCase(unittest.TestCase):
                     datetime(2019, 8, 29, 14, 0), {'x': 'y'}, 'HEADER: '))
             self.assertEqual(
                 [
-                    'WARNING:rights:HEADER: INVALID_PARAMETER: timestamps must be in the future '
-                    "(Request: {'x': 'y'})"],
+                    ('WARNING:rights:HEADER: INVALID_PARAMETER: timestamps must be in the future '
+                    "(Request: {'x': 'y'})")],
                 cm.output)
 
     @patch('rights.parse_timestamp', return_value=(None, None))
@@ -700,10 +700,10 @@ class MainTestCase(unittest.TestCase):
                 rights.validate_set_right_request(json_data, 'HEADER: '))
             self.assertEqual(
                 [
-                    'WARNING:rights:HEADER: INVALID_PARAMETER: timestamps must be in the future '
+                    ('WARNING:rights:HEADER: INVALID_PARAMETER: timestamps must be in the future '
                     "(Request: {'organization': {'code': '00000000'}, 'person': {'code': "
                     "'12345678901'}, 'right': {'right_type': 'RIGHT1', 'valid_from': "
-                    "'2019-08-29T14:00:00'}})"],
+                    "'2019-08-29T14:00:00'}})")],
                 cm.output)
 
     @patch('rights.add_right')
@@ -740,8 +740,8 @@ class MainTestCase(unittest.TestCase):
             commit_mock.assert_called_once()
             self.assertEqual(
                 [
-                    'INFO:rights:HEADER: Added new Right: person_code=12345678901, '
-                    'organization_code=00000000, right_type=RIGHT1'],
+                    ('INFO:rights:HEADER: Added new Right: person_code=12345678901, '
+                    'organization_code=00000000, right_type=RIGHT1')],
                 cm.output)
 
     @patch('rights.validate_config', return_value='ERR')
@@ -814,8 +814,8 @@ class MainTestCase(unittest.TestCase):
             commit_mock.assert_called_once()
             self.assertEqual(
                 [
-                    'INFO:rights:HEADER: Revoked Right: person_code=12345678901, '
-                    'organization_code=00000000, right_type=RIGHT1'],
+                    ('INFO:rights:HEADER: Revoked Right: person_code=12345678901, '
+                    'organization_code=00000000, right_type=RIGHT1')],
                 cm.output)
 
     @patch('rights.validate_config', return_value='ERR')
@@ -1166,593 +1166,576 @@ class MainTestCase(unittest.TestCase):
 
     @patch('rights.check_client', return_value=False)
     def test_set_right_incorrect_client(self, mock_check_client):
-        with self.app.app_context():
-            with self.assertLogs(rights.LOGGER, level='INFO') as cm:
-                json_data = {
-                    'organization': {'code': '00000000'},
-                    'person': {'code': '12345678901'},
-                    'right': {'right_type': 'RIGHT1'}}
-                response = self.client.post('/set-right', json=json_data)
-                self.assertEqual(403, response.status_code)
-                self.assertEqual(
-                    jsonify({
-                        'code': 'FORBIDDEN',
-                        'msg': 'Client certificate is not allowed: None'}).json,
-                    response.json
-                )
-                self.assertEqual([
-                    f"INFO:rights:[SetRight:post] {rights.INCOMING_REQUEST_MSG}: "
-                    "{'organization': {'code': '00000000'}, 'person': {'code': '12345678901'}, "
-                    "'right': {'right_type': 'RIGHT1'}}",
-                    'INFO:rights:[SetRight:post] Client DN: None',
-                    'ERROR:rights:[SetRight:post] FORBIDDEN: Client certificate is not allowed: '
-                    'None',
-                    "INFO:rights:[SetRight:post] Response: {'http_status': 403, 'code': "
-                    "'FORBIDDEN', 'msg': 'Client certificate is not allowed: None'}"], cm.output)
-                mock_check_client.assert_called_with({
-                    'db_host': 'localhost', 'db_port': '5432',
-                    'db_db': 'postgres', 'db_user': 'postgres',
-                    'db_pass': 'password', 'db_connect_timeout': 10, 'allow_all': False,
-                    'allowed': ['OU=xtss,O=RIA,C=EE']}, None)
+        with self.app.app_context(), self.assertLogs(rights.LOGGER, level='INFO') as cm:
+            json_data = {
+                'organization': {'code': '00000000'},
+                'person': {'code': '12345678901'},
+                'right': {'right_type': 'RIGHT1'}}
+            response = self.client.post('/set-right', json=json_data)
+            self.assertEqual(403, response.status_code)
+            self.assertEqual(
+                jsonify({
+                    'code': 'FORBIDDEN',
+                    'msg': 'Client certificate is not allowed: None'}).json,
+                response.json
+            )
+            self.assertEqual([
+                (f"INFO:rights:[SetRight:post] {rights.INCOMING_REQUEST_MSG}: "
+                "{'organization': {'code': '00000000'}, 'person': {'code': '12345678901'}, "
+                "'right': {'right_type': 'RIGHT1'}}"),
+                'INFO:rights:[SetRight:post] Client DN: None',
+                ('ERROR:rights:[SetRight:post] FORBIDDEN: Client certificate is not allowed: '
+                'None'),
+                ("INFO:rights:[SetRight:post] Response: {'http_status': 403, 'code': "
+                "'FORBIDDEN', 'msg': 'Client certificate is not allowed: None'}")], cm.output)
+            mock_check_client.assert_called_with({
+                'db_host': 'localhost', 'db_port': '5432',
+                'db_db': 'postgres', 'db_user': 'postgres',
+                'db_pass': 'password', 'db_connect_timeout': 10, 'allow_all': False,
+                'allowed': ['OU=xtss,O=RIA,C=EE']}, None)
 
     @patch('rights.process_set_right', side_effect=psycopg2.Error('DB_ERROR_MSG'))
     @patch('rights.check_client', return_value=True)
     def test_set_right_db_error_handled(self, mock_check_client, mock_process_set_right):
-        with self.app.app_context():
-            with self.assertLogs(rights.LOGGER, level='INFO') as cm:
-                json_data = {
-                    'organization': {'code': '00000000'},
-                    'person': {'code': '12345678901'},
-                    'right': {'right_type': 'RIGHT1'}}
-                response = self.client.post('/set-right', json=json_data)
-                self.assertEqual(500, response.status_code)
-                self.assertEqual(
-                    jsonify({
-                        'code': 'DB_ERROR',
-                        'msg': rights.DB_ERROR_MSG}).json,
-                    response.json
-                )
-                self.assertEqual([
-                    f"INFO:rights:[SetRight:post] {rights.INCOMING_REQUEST_MSG}: "
-                    "{'organization': {'code': '00000000'}, 'person': {'code': '12345678901'}, "
-                    "'right': {'right_type': 'RIGHT1'}}",
-                    'INFO:rights:[SetRight:post] Client DN: None',
-                    f'ERROR:rights:[SetRight:post] DB_ERROR: {rights.DB_ERROR_MSG}: '
-                    'DB_ERROR_MSG',
-                    "INFO:rights:[SetRight:post] Response: {'http_status': 500, 'code': "
-                    f"'DB_ERROR', 'msg': '{rights.DB_ERROR_MSG}'"
-                    "}"], cm.output)
-                mock_check_client.assert_called_with({
-                    'db_host': 'localhost', 'db_port': '5432',
-                    'db_db': 'postgres', 'db_user': 'postgres',
-                    'db_pass': 'password', 'db_connect_timeout': 10, 'allow_all': False,
-                    'allowed': ['OU=xtss,O=RIA,C=EE']}, None)
-                mock_process_set_right.assert_called_with({
-                    'db_host': 'localhost', 'db_port': '5432', 'db_db': 'postgres',
-                    'db_user': 'postgres', 'db_pass': 'password', 'db_connect_timeout': 10,
-                    'allow_all': False, 'allowed': ['OU=xtss,O=RIA,C=EE']}, {
-                        'organization': {'code': '00000000'}, 'person': {'code': '12345678901'},
-                        'right': {'right_type': 'RIGHT1'}},
-                    '[SetRight:post] ')
+        with self.app.app_context(), self.assertLogs(rights.LOGGER, level='INFO') as cm:
+            json_data = {
+                'organization': {'code': '00000000'},
+                'person': {'code': '12345678901'},
+                'right': {'right_type': 'RIGHT1'}}
+            response = self.client.post('/set-right', json=json_data)
+            self.assertEqual(500, response.status_code)
+            self.assertEqual(
+                jsonify({
+                    'code': 'DB_ERROR',
+                    'msg': rights.DB_ERROR_MSG}).json,
+                response.json
+            )
+            self.assertEqual([
+                (f"INFO:rights:[SetRight:post] {rights.INCOMING_REQUEST_MSG}: "
+                "{'organization': {'code': '00000000'}, 'person': {'code': '12345678901'}, "
+                "'right': {'right_type': 'RIGHT1'}}"),
+                'INFO:rights:[SetRight:post] Client DN: None',
+                (f'ERROR:rights:[SetRight:post] DB_ERROR: {rights.DB_ERROR_MSG}: '
+                'DB_ERROR_MSG'),
+                ("INFO:rights:[SetRight:post] Response: {'http_status': 500, 'code': "
+                f"'DB_ERROR', 'msg': '{rights.DB_ERROR_MSG}'"
+                "}")], cm.output)
+            mock_check_client.assert_called_with({
+                'db_host': 'localhost', 'db_port': '5432',
+                'db_db': 'postgres', 'db_user': 'postgres',
+                'db_pass': 'password', 'db_connect_timeout': 10, 'allow_all': False,
+                'allowed': ['OU=xtss,O=RIA,C=EE']}, None)
+            mock_process_set_right.assert_called_with({
+                'db_host': 'localhost', 'db_port': '5432', 'db_db': 'postgres',
+                'db_user': 'postgres', 'db_pass': 'password', 'db_connect_timeout': 10,
+                'allow_all': False, 'allowed': ['OU=xtss,O=RIA,C=EE']}, {
+                    'organization': {'code': '00000000'}, 'person': {'code': '12345678901'},
+                    'right': {'right_type': 'RIGHT1'}},
+                '[SetRight:post] ')
 
     @patch('rights.process_set_right', return_value={
         'http_status': 200, 'code': 'OK', 'msg': 'SET_RIGHT_OK'})
     @patch('rights.check_client', return_value=True)
     def test_set_right_ok(self, mock_check_client, mock_process_set_right):
-        with self.app.app_context():
-            with self.assertLogs(rights.LOGGER, level='INFO') as cm:
-                json_data = {
-                    'organization': {'code': '00000000'},
-                    'person': {'code': '12345678901'},
-                    'right': {'right_type': 'RIGHT1'}}
-                response = self.client.post('/set-right', json=json_data)
-                self.assertEqual(200, response.status_code)
-                self.assertEqual(
-                    jsonify({'code': 'OK', 'msg': 'SET_RIGHT_OK'}).json,
-                    response.json
-                )
-                self.assertEqual([
-                    f"INFO:rights:[SetRight:post] {rights.INCOMING_REQUEST_MSG}: "
-                    "{'organization': {'code': '00000000'}, 'person': {'code': '12345678901'}, "
-                    "'right': {'right_type': 'RIGHT1'}}",
-                    'INFO:rights:[SetRight:post] Client DN: None',
-                    "INFO:rights:[SetRight:post] Response: {'http_status': 200, 'code': 'OK', "
-                    "'msg': 'SET_RIGHT_OK'}"], cm.output)
-                mock_check_client.assert_called_with({
-                    'db_host': 'localhost', 'db_port': '5432',
-                    'db_db': 'postgres', 'db_user': 'postgres',
-                    'db_pass': 'password', 'db_connect_timeout': 10, 'allow_all': False,
-                    'allowed': ['OU=xtss,O=RIA,C=EE']}, None)
-                mock_process_set_right.assert_called_with({
-                    'db_host': 'localhost', 'db_port': '5432', 'db_db': 'postgres',
-                    'db_user': 'postgres', 'db_pass': 'password', 'db_connect_timeout': 10,
-                    'allow_all': False, 'allowed': ['OU=xtss,O=RIA,C=EE']}, {
-                        'organization': {'code': '00000000'}, 'person': {'code': '12345678901'},
-                        'right': {'right_type': 'RIGHT1'}},
-                    '[SetRight:post] ')
+        with self.app.app_context(), self.assertLogs(rights.LOGGER, level='INFO') as cm:
+            json_data = {
+                'organization': {'code': '00000000'},
+                'person': {'code': '12345678901'},
+                'right': {'right_type': 'RIGHT1'}}
+            response = self.client.post('/set-right', json=json_data)
+            self.assertEqual(200, response.status_code)
+            self.assertEqual(
+                jsonify({'code': 'OK', 'msg': 'SET_RIGHT_OK'}).json,
+                response.json
+            )
+            self.assertEqual([
+                (f"INFO:rights:[SetRight:post] {rights.INCOMING_REQUEST_MSG}: "
+                "{'organization': {'code': '00000000'}, 'person': {'code': '12345678901'}, "
+                "'right': {'right_type': 'RIGHT1'}}"),
+                'INFO:rights:[SetRight:post] Client DN: None',
+                ("INFO:rights:[SetRight:post] Response: {'http_status': 200, 'code': 'OK', "
+                "'msg': 'SET_RIGHT_OK'}")], cm.output)
+            mock_check_client.assert_called_with({
+                'db_host': 'localhost', 'db_port': '5432',
+                'db_db': 'postgres', 'db_user': 'postgres',
+                'db_pass': 'password', 'db_connect_timeout': 10, 'allow_all': False,
+                'allowed': ['OU=xtss,O=RIA,C=EE']}, None)
+            mock_process_set_right.assert_called_with({
+                'db_host': 'localhost', 'db_port': '5432', 'db_db': 'postgres',
+                'db_user': 'postgres', 'db_pass': 'password', 'db_connect_timeout': 10,
+                'allow_all': False, 'allowed': ['OU=xtss,O=RIA,C=EE']}, {
+                    'organization': {'code': '00000000'}, 'person': {'code': '12345678901'},
+                    'right': {'right_type': 'RIGHT1'}},
+                '[SetRight:post] ')
 
     @patch('rights.check_client', return_value=False)
     def test_revoke_right_incorrect_client(self, mock_check_client):
-        with self.app.app_context():
-            with self.assertLogs(rights.LOGGER, level='INFO') as cm:
-                json_data = {
-                    'organization_code': '00000000',
-                    'person_code': '12345678901',
-                    'right_type': 'RIGHT1'}
-                response = self.client.post('/revoke-right', json=json_data)
-                self.assertEqual(403, response.status_code)
-                self.assertEqual(
-                    jsonify({
-                        'code': 'FORBIDDEN',
-                        'msg': 'Client certificate is not allowed: None'}).json,
-                    response.json
-                )
-                self.assertEqual([
-                    f"INFO:rights:[RevokeRight:post] {rights.INCOMING_REQUEST_MSG}: "
-                    "{'organization_code': "
-                    "'00000000', 'person_code': '12345678901', 'right_type': 'RIGHT1'}",
-                    'INFO:rights:[RevokeRight:post] Client DN: None',
-                    'ERROR:rights:[RevokeRight:post] FORBIDDEN: Client certificate is not '
-                    'allowed: None',
-                    "INFO:rights:[RevokeRight:post] Response: {'http_status': 403, 'code': "
-                    "'FORBIDDEN', 'msg': 'Client certificate is not allowed: None'}"], cm.output)
-                mock_check_client.assert_called_with({
-                    'db_host': 'localhost', 'db_port': '5432',
-                    'db_db': 'postgres', 'db_user': 'postgres',
-                    'db_pass': 'password', 'db_connect_timeout': 10, 'allow_all': False,
-                    'allowed': ['OU=xtss,O=RIA,C=EE']}, None)
+        with self.app.app_context(), self.assertLogs(rights.LOGGER, level='INFO') as cm:
+            json_data = {
+                'organization_code': '00000000',
+                'person_code': '12345678901',
+                'right_type': 'RIGHT1'}
+            response = self.client.post('/revoke-right', json=json_data)
+            self.assertEqual(403, response.status_code)
+            self.assertEqual(
+                jsonify({
+                    'code': 'FORBIDDEN',
+                    'msg': 'Client certificate is not allowed: None'}).json,
+                response.json
+            )
+            self.assertEqual([
+                (f"INFO:rights:[RevokeRight:post] {rights.INCOMING_REQUEST_MSG}: "
+                "{'organization_code': "
+                "'00000000', 'person_code': '12345678901', 'right_type': 'RIGHT1'}"),
+                'INFO:rights:[RevokeRight:post] Client DN: None',
+                ('ERROR:rights:[RevokeRight:post] FORBIDDEN: Client certificate is not '
+                'allowed: None'),
+                ("INFO:rights:[RevokeRight:post] Response: {'http_status': 403, 'code': "
+                "'FORBIDDEN', 'msg': 'Client certificate is not allowed: None'}")], cm.output)
+            mock_check_client.assert_called_with({
+                'db_host': 'localhost', 'db_port': '5432',
+                'db_db': 'postgres', 'db_user': 'postgres',
+                'db_pass': 'password', 'db_connect_timeout': 10, 'allow_all': False,
+                'allowed': ['OU=xtss,O=RIA,C=EE']}, None)
 
     @patch('rights.process_revoke_right', side_effect=psycopg2.Error('DB_ERROR_MSG'))
     @patch('rights.check_client', return_value=True)
     def test_revoke_right_db_error_handled(self, mock_check_client, mock_process_revoke_right):
-        with self.app.app_context():
-            with self.assertLogs(rights.LOGGER, level='INFO') as cm:
-                json_data = {
-                    'organization_code': '00000000',
-                    'person_code': '12345678901',
-                    'right_type': 'RIGHT1'}
-                response = self.client.post('/revoke-right', json=json_data)
-                self.assertEqual(500, response.status_code)
-                self.assertEqual(
-                    jsonify({
-                        'code': 'DB_ERROR',
-                        'msg': rights.DB_ERROR_MSG}).json,
-                    response.json
-                )
-                self.assertEqual([
-                    f"INFO:rights:[RevokeRight:post] {rights.INCOMING_REQUEST_MSG}: "
-                    "{'organization_code': "
-                    "'00000000', 'person_code': '12345678901', 'right_type': 'RIGHT1'}",
-                    'INFO:rights:[RevokeRight:post] Client DN: None',
-                    f'ERROR:rights:[RevokeRight:post] DB_ERROR: {rights.DB_ERROR_MSG}: '
-                    'DB_ERROR_MSG',
-                    "INFO:rights:[RevokeRight:post] Response: {'http_status': 500, 'code': "
-                    f"'DB_ERROR', 'msg': '{rights.DB_ERROR_MSG}'"
-                    "}"], cm.output)
-                mock_check_client.assert_called_with({
-                    'db_host': 'localhost', 'db_port': '5432',
-                    'db_db': 'postgres', 'db_user': 'postgres',
-                    'db_pass': 'password', 'db_connect_timeout': 10, 'allow_all': False,
-                    'allowed': ['OU=xtss,O=RIA,C=EE']}, None)
-                mock_process_revoke_right.assert_called_with(
-                    {
-                        'db_host': 'localhost', 'db_port': '5432', 'db_db': 'postgres',
-                        'db_user': 'postgres', 'db_pass': 'password', 'db_connect_timeout': 10,
-                        'allow_all': False, 'allowed': ['OU=xtss,O=RIA,C=EE']
-                    }, {
-                        'organization_code': '00000000', 'person_code': '12345678901',
-                        'right_type': 'RIGHT1'
-                    }, '[RevokeRight:post] ')
+        with self.app.app_context(), self.assertLogs(rights.LOGGER, level='INFO') as cm:
+            json_data = {
+                'organization_code': '00000000',
+                'person_code': '12345678901',
+                'right_type': 'RIGHT1'}
+            response = self.client.post('/revoke-right', json=json_data)
+            self.assertEqual(500, response.status_code)
+            self.assertEqual(
+                jsonify({
+                    'code': 'DB_ERROR',
+                    'msg': rights.DB_ERROR_MSG}).json,
+                response.json
+            )
+            self.assertEqual([
+                (f"INFO:rights:[RevokeRight:post] {rights.INCOMING_REQUEST_MSG}: "
+                "{'organization_code': "
+                "'00000000', 'person_code': '12345678901', 'right_type': 'RIGHT1'}"),
+                'INFO:rights:[RevokeRight:post] Client DN: None',
+                (f'ERROR:rights:[RevokeRight:post] DB_ERROR: {rights.DB_ERROR_MSG}: '
+                'DB_ERROR_MSG'),
+                ("INFO:rights:[RevokeRight:post] Response: {'http_status': 500, 'code': "
+                f"'DB_ERROR', 'msg': '{rights.DB_ERROR_MSG}'"
+                "}")], cm.output)
+            mock_check_client.assert_called_with({
+                'db_host': 'localhost', 'db_port': '5432',
+                'db_db': 'postgres', 'db_user': 'postgres',
+                'db_pass': 'password', 'db_connect_timeout': 10, 'allow_all': False,
+                'allowed': ['OU=xtss,O=RIA,C=EE']}, None)
+            mock_process_revoke_right.assert_called_with(
+                {
+                    'db_host': 'localhost', 'db_port': '5432', 'db_db': 'postgres',
+                    'db_user': 'postgres', 'db_pass': 'password', 'db_connect_timeout': 10,
+                    'allow_all': False, 'allowed': ['OU=xtss,O=RIA,C=EE']
+                }, {
+                    'organization_code': '00000000', 'person_code': '12345678901',
+                    'right_type': 'RIGHT1'
+                }, '[RevokeRight:post] ')
 
     @patch('rights.process_revoke_right', return_value={
         'http_status': 200, 'code': 'OK', 'msg': 'REVOKE_RIGHT_OK'})
     @patch('rights.check_client', return_value=True)
     def test_revoke_right_ok(self, mock_check_client, mock_process_revoke_right):
-        with self.app.app_context():
-            with self.assertLogs(rights.LOGGER, level='INFO') as cm:
-                json_data = {
-                    'organization_code': '00000000',
-                    'person_code': '12345678901',
-                    'right_type': 'RIGHT1'}
-                response = self.client.post('/revoke-right', json=json_data)
-                self.assertEqual(200, response.status_code)
-                self.assertEqual(
-                    jsonify({'code': 'OK', 'msg': 'REVOKE_RIGHT_OK'}).json,
-                    response.json
-                )
-                self.assertEqual([
-                    f"INFO:rights:[RevokeRight:post] {rights.INCOMING_REQUEST_MSG}: "
-                    "{'organization_code': "
-                    "'00000000', 'person_code': '12345678901', 'right_type': 'RIGHT1'}",
-                    'INFO:rights:[RevokeRight:post] Client DN: None',
-                    "INFO:rights:[RevokeRight:post] Response: {'http_status': 200, 'code': 'OK', "
-                    "'msg': 'REVOKE_RIGHT_OK'}"], cm.output)
-                mock_check_client.assert_called_with({
-                    'db_host': 'localhost', 'db_port': '5432',
-                    'db_db': 'postgres', 'db_user': 'postgres',
-                    'db_pass': 'password', 'db_connect_timeout': 10, 'allow_all': False,
-                    'allowed': ['OU=xtss,O=RIA,C=EE']}, None)
-                mock_process_revoke_right.assert_called_with(
-                    {
-                        'db_host': 'localhost', 'db_port': '5432', 'db_db': 'postgres',
-                        'db_user': 'postgres', 'db_pass': 'password', 'db_connect_timeout': 10,
-                        'allow_all': False, 'allowed': ['OU=xtss,O=RIA,C=EE']
-                    }, {
-                        'organization_code': '00000000', 'person_code': '12345678901',
-                        'right_type': 'RIGHT1'}, '[RevokeRight:post] ')
+        with self.app.app_context(), self.assertLogs(rights.LOGGER, level='INFO') as cm:
+            json_data = {
+                'organization_code': '00000000',
+                'person_code': '12345678901',
+                'right_type': 'RIGHT1'}
+            response = self.client.post('/revoke-right', json=json_data)
+            self.assertEqual(200, response.status_code)
+            self.assertEqual(
+                jsonify({'code': 'OK', 'msg': 'REVOKE_RIGHT_OK'}).json,
+                response.json
+            )
+            self.assertEqual([
+                (f"INFO:rights:[RevokeRight:post] {rights.INCOMING_REQUEST_MSG}: "
+                "{'organization_code': "
+                "'00000000', 'person_code': '12345678901', 'right_type': 'RIGHT1'}"),
+                'INFO:rights:[RevokeRight:post] Client DN: None',
+                ("INFO:rights:[RevokeRight:post] Response: {'http_status': 200, 'code': 'OK', "
+                "'msg': 'REVOKE_RIGHT_OK'}")], cm.output)
+            mock_check_client.assert_called_with({
+                'db_host': 'localhost', 'db_port': '5432',
+                'db_db': 'postgres', 'db_user': 'postgres',
+                'db_pass': 'password', 'db_connect_timeout': 10, 'allow_all': False,
+                'allowed': ['OU=xtss,O=RIA,C=EE']}, None)
+            mock_process_revoke_right.assert_called_with(
+                {
+                    'db_host': 'localhost', 'db_port': '5432', 'db_db': 'postgres',
+                    'db_user': 'postgres', 'db_pass': 'password', 'db_connect_timeout': 10,
+                    'allow_all': False, 'allowed': ['OU=xtss,O=RIA,C=EE']
+                }, {
+                    'organization_code': '00000000', 'person_code': '12345678901',
+                    'right_type': 'RIGHT1'}, '[RevokeRight:post] ')
 
     @patch('rights.check_client', return_value=False)
     def test_rights_incorrect_client(self, mock_check_client):
-        with self.app.app_context():
-            with self.assertLogs(rights.LOGGER, level='INFO') as cm:
-                json_data = {
-                    'organizations': ['00000000', '00000001'],
-                    'persons': ['12345678901', '12345'],
-                    'rights': ['RIGHT1', 'XXX'],
-                    'only_valid': False,
-                    'limit': 5,
-                    'offset': 3}
-                response = self.client.post('/rights', json=json_data)
-                self.assertEqual(403, response.status_code)
-                self.assertEqual(
-                    jsonify({
-                        'code': 'FORBIDDEN',
-                        'msg': 'Client certificate is not allowed: None'}).json,
-                    response.json
-                )
-                self.assertEqual([
-                    f"INFO:rights:[Rights:post] {rights.INCOMING_REQUEST_MSG}: "
-                    "{'limit': 5, 'offset': 3, "
-                    "'only_valid': False, 'organizations': ['00000000', '00000001'], 'persons': "
-                    "['12345678901', '12345'], 'rights': ['RIGHT1', 'XXX']}",
-                    'INFO:rights:[Rights:post] Client DN: None',
-                    'ERROR:rights:[Rights:post] FORBIDDEN: Client certificate is not allowed: '
-                    'None',
-                    "INFO:rights:[Rights:post] Response: {'http_status': 403, 'code': "
-                    "'FORBIDDEN', 'msg': 'Client certificate is not allowed: None'}"], cm.output)
-                mock_check_client.assert_called_with({
-                    'db_host': 'localhost', 'db_port': '5432',
-                    'db_db': 'postgres', 'db_user': 'postgres',
-                    'db_pass': 'password', 'db_connect_timeout': 10, 'allow_all': False,
-                    'allowed': ['OU=xtss,O=RIA,C=EE']}, None)
+        with self.app.app_context(), self.assertLogs(rights.LOGGER, level='INFO') as cm:
+            json_data = {
+                'organizations': ['00000000', '00000001'],
+                'persons': ['12345678901', '12345'],
+                'rights': ['RIGHT1', 'XXX'],
+                'only_valid': False,
+                'limit': 5,
+                'offset': 3}
+            response = self.client.post('/rights', json=json_data)
+            self.assertEqual(403, response.status_code)
+            self.assertEqual(
+                jsonify({
+                    'code': 'FORBIDDEN',
+                    'msg': 'Client certificate is not allowed: None'}).json,
+                response.json
+            )
+            self.assertEqual([
+                (f"INFO:rights:[Rights:post] {rights.INCOMING_REQUEST_MSG}: "
+                "{'limit': 5, 'offset': 3, "
+                "'only_valid': False, 'organizations': ['00000000', '00000001'], 'persons': "
+                "['12345678901', '12345'], 'rights': ['RIGHT1', 'XXX']}"),
+                'INFO:rights:[Rights:post] Client DN: None',
+                ('ERROR:rights:[Rights:post] FORBIDDEN: Client certificate is not allowed: '
+                'None'),
+                ("INFO:rights:[Rights:post] Response: {'http_status': 403, 'code': "
+                "'FORBIDDEN', 'msg': 'Client certificate is not allowed: None'}")], cm.output)
+            mock_check_client.assert_called_with({
+                'db_host': 'localhost', 'db_port': '5432',
+                'db_db': 'postgres', 'db_user': 'postgres',
+                'db_pass': 'password', 'db_connect_timeout': 10, 'allow_all': False,
+                'allowed': ['OU=xtss,O=RIA,C=EE']}, None)
 
     @patch('rights.process_search_rights', side_effect=psycopg2.Error('DB_ERROR_MSG'))
     @patch('rights.check_client', return_value=True)
     def test_rights_db_error_handled(self, mock_check_client, mock_process_search_rights):
-        with self.app.app_context():
-            with self.assertLogs(rights.LOGGER, level='INFO') as cm:
-                json_data = {
+        with self.app.app_context(), self.assertLogs(rights.LOGGER, level='INFO') as cm:
+            json_data = {
+                'organizations': ['00000000', '00000001'],
+                'persons': ['12345678901', '12345'],
+                'rights': ['RIGHT1', 'XXX'],
+                'only_valid': False,
+                'limit': 5,
+                'offset': 3}
+            response = self.client.post('/rights', json=json_data)
+            self.assertEqual(500, response.status_code)
+            self.assertEqual(
+                jsonify({
+                    'code': 'DB_ERROR',
+                    'msg': rights.DB_ERROR_MSG}).json,
+                response.json
+            )
+            self.assertEqual([
+                (f"INFO:rights:[Rights:post] {rights.INCOMING_REQUEST_MSG}: "
+                "{'limit': 5, 'offset': 3, "
+                "'only_valid': False, 'organizations': ['00000000', '00000001'], 'persons': "
+                "['12345678901', '12345'], 'rights': ['RIGHT1', 'XXX']}"),
+                'INFO:rights:[Rights:post] Client DN: None',
+                (f'ERROR:rights:[Rights:post] DB_ERROR: {rights.DB_ERROR_MSG}: '
+                'DB_ERROR_MSG')], cm.output)
+            mock_check_client.assert_called_with({
+                'db_host': 'localhost', 'db_port': '5432',
+                'db_db': 'postgres', 'db_user': 'postgres',
+                'db_pass': 'password', 'db_connect_timeout': 10, 'allow_all': False,
+                'allowed': ['OU=xtss,O=RIA,C=EE']}, None)
+            mock_process_search_rights.assert_called_with(
+                {
+                    'db_host': 'localhost', 'db_port': '5432', 'db_db': 'postgres',
+                    'db_user': 'postgres', 'db_pass': 'password', 'db_connect_timeout': 10,
+                    'allow_all': False, 'allowed': ['OU=xtss,O=RIA,C=EE']
+                }, {
+                    'limit': 5, 'offset': 3, 'only_valid': False,
                     'organizations': ['00000000', '00000001'],
-                    'persons': ['12345678901', '12345'],
-                    'rights': ['RIGHT1', 'XXX'],
-                    'only_valid': False,
-                    'limit': 5,
-                    'offset': 3}
-                response = self.client.post('/rights', json=json_data)
-                self.assertEqual(500, response.status_code)
-                self.assertEqual(
-                    jsonify({
-                        'code': 'DB_ERROR',
-                        'msg': rights.DB_ERROR_MSG}).json,
-                    response.json
-                )
-                self.assertEqual([
-                    f"INFO:rights:[Rights:post] {rights.INCOMING_REQUEST_MSG}: "
-                    "{'limit': 5, 'offset': 3, "
-                    "'only_valid': False, 'organizations': ['00000000', '00000001'], 'persons': "
-                    "['12345678901', '12345'], 'rights': ['RIGHT1', 'XXX']}",
-                    'INFO:rights:[Rights:post] Client DN: None',
-                    f'ERROR:rights:[Rights:post] DB_ERROR: {rights.DB_ERROR_MSG}: '
-                    'DB_ERROR_MSG'], cm.output)
-                mock_check_client.assert_called_with({
-                    'db_host': 'localhost', 'db_port': '5432',
-                    'db_db': 'postgres', 'db_user': 'postgres',
-                    'db_pass': 'password', 'db_connect_timeout': 10, 'allow_all': False,
-                    'allowed': ['OU=xtss,O=RIA,C=EE']}, None)
-                mock_process_search_rights.assert_called_with(
-                    {
-                        'db_host': 'localhost', 'db_port': '5432', 'db_db': 'postgres',
-                        'db_user': 'postgres', 'db_pass': 'password', 'db_connect_timeout': 10,
-                        'allow_all': False, 'allowed': ['OU=xtss,O=RIA,C=EE']
-                    }, {
-                        'limit': 5, 'offset': 3, 'only_valid': False,
-                        'organizations': ['00000000', '00000001'],
-                        'persons': ['12345678901', '12345'], 'rights': ['RIGHT1', 'XXX']
-                    }, '[Rights:post] ')
+                    'persons': ['12345678901', '12345'], 'rights': ['RIGHT1', 'XXX']
+                }, '[Rights:post] ')
 
     @patch('rights.process_search_rights', return_value={
         'http_status': 200, 'code': 'OK', 'msg': 'SEARCH_RIGHTS_OK'})
     @patch('rights.check_client', return_value=True)
     def test_rights_ok(self, mock_check_client, mock_process_search_rights):
-        with self.app.app_context():
-            with self.assertLogs(rights.LOGGER, level='INFO') as cm:
-                json_data = {
+        with self.app.app_context(), self.assertLogs(rights.LOGGER, level='INFO') as cm:
+            json_data = {
+                'organizations': ['00000000', '00000001'],
+                'persons': ['12345678901', '12345'],
+                'rights': ['RIGHT1', 'XXX'],
+                'only_valid': False,
+                'limit': 5,
+                'offset': 3}
+            response = self.client.post('/rights', json=json_data)
+            self.assertEqual(200, response.status_code)
+            self.assertEqual(
+                jsonify({'code': 'OK', 'msg': 'SEARCH_RIGHTS_OK'}).json,
+                response.json
+            )
+            self.assertEqual([
+                (f"INFO:rights:[Rights:post] {rights.INCOMING_REQUEST_MSG}: "
+                "{'limit': 5, 'offset': 3, "
+                "'only_valid': False, 'organizations': ['00000000', '00000001'], 'persons': "
+                "['12345678901', '12345'], 'rights': ['RIGHT1', 'XXX']}"),
+                'INFO:rights:[Rights:post] Client DN: None'], cm.output)
+            mock_check_client.assert_called_with({
+                'db_host': 'localhost', 'db_port': '5432',
+                'db_db': 'postgres', 'db_user': 'postgres',
+                'db_pass': 'password', 'db_connect_timeout': 10, 'allow_all': False,
+                'allowed': ['OU=xtss,O=RIA,C=EE']}, None)
+            mock_process_search_rights.assert_called_with(
+                {
+                    'db_host': 'localhost', 'db_port': '5432', 'db_db': 'postgres',
+                    'db_user': 'postgres', 'db_pass': 'password', 'db_connect_timeout': 10,
+                    'allow_all': False, 'allowed': ['OU=xtss,O=RIA,C=EE']
+                }, {
+                    'limit': 5, 'offset': 3, 'only_valid': False,
                     'organizations': ['00000000', '00000001'],
-                    'persons': ['12345678901', '12345'],
-                    'rights': ['RIGHT1', 'XXX'],
-                    'only_valid': False,
-                    'limit': 5,
-                    'offset': 3}
-                response = self.client.post('/rights', json=json_data)
-                self.assertEqual(200, response.status_code)
-                self.assertEqual(
-                    jsonify({'code': 'OK', 'msg': 'SEARCH_RIGHTS_OK'}).json,
-                    response.json
-                )
-                self.assertEqual([
-                    f"INFO:rights:[Rights:post] {rights.INCOMING_REQUEST_MSG}: "
-                    "{'limit': 5, 'offset': 3, "
-                    "'only_valid': False, 'organizations': ['00000000', '00000001'], 'persons': "
-                    "['12345678901', '12345'], 'rights': ['RIGHT1', 'XXX']}",
-                    'INFO:rights:[Rights:post] Client DN: None'], cm.output)
-                mock_check_client.assert_called_with({
-                    'db_host': 'localhost', 'db_port': '5432',
-                    'db_db': 'postgres', 'db_user': 'postgres',
-                    'db_pass': 'password', 'db_connect_timeout': 10, 'allow_all': False,
-                    'allowed': ['OU=xtss,O=RIA,C=EE']}, None)
-                mock_process_search_rights.assert_called_with(
-                    {
-                        'db_host': 'localhost', 'db_port': '5432', 'db_db': 'postgres',
-                        'db_user': 'postgres', 'db_pass': 'password', 'db_connect_timeout': 10,
-                        'allow_all': False, 'allowed': ['OU=xtss,O=RIA,C=EE']
-                    }, {
-                        'limit': 5, 'offset': 3, 'only_valid': False,
-                        'organizations': ['00000000', '00000001'],
-                        'persons': ['12345678901', '12345'], 'rights': ['RIGHT1', 'XXX']
-                    }, '[Rights:post] ')
+                    'persons': ['12345678901', '12345'], 'rights': ['RIGHT1', 'XXX']
+                }, '[Rights:post] ')
 
     @patch('rights.check_client', return_value=False)
     def test_person_incorrect_client(self, mock_check_client):
-        with self.app.app_context():
-            with self.assertLogs(rights.LOGGER, level='INFO') as cm:
-                json_data = {
-                    'code': '12345678901',
-                    'first_name': 'First-name',
-                    'last_name': 'Last-name'}
-                response = self.client.post('/person', json=json_data)
-                self.assertEqual(403, response.status_code)
-                self.assertEqual(
-                    jsonify({
-                        'code': 'FORBIDDEN',
-                        'msg': 'Client certificate is not allowed: None'}).json,
-                    response.json
-                )
-                self.assertEqual([
-                    f"INFO:rights:[Person:post] {rights.INCOMING_REQUEST_MSG}: "
-                    "{'code': '12345678901', "
-                    "'first_name': 'First-name', 'last_name': 'Last-name'}",
-                    'INFO:rights:[Person:post] Client DN: None',
-                    'ERROR:rights:[Person:post] FORBIDDEN: Client certificate is not allowed: '
-                    'None',
-                    "INFO:rights:[Person:post] Response: {'http_status': 403, 'code': "
-                    "'FORBIDDEN', 'msg': 'Client certificate is not allowed: None'}"], cm.output)
-                mock_check_client.assert_called_with({
-                    'db_host': 'localhost', 'db_port': '5432',
-                    'db_db': 'postgres', 'db_user': 'postgres',
-                    'db_pass': 'password', 'db_connect_timeout': 10, 'allow_all': False,
-                    'allowed': ['OU=xtss,O=RIA,C=EE']}, None)
+        with self.app.app_context(), self.assertLogs(rights.LOGGER, level='INFO') as cm:
+            json_data = {
+                'code': '12345678901',
+                'first_name': 'First-name',
+                'last_name': 'Last-name'}
+            response = self.client.post('/person', json=json_data)
+            self.assertEqual(403, response.status_code)
+            self.assertEqual(
+                jsonify({
+                    'code': 'FORBIDDEN',
+                    'msg': 'Client certificate is not allowed: None'}).json,
+                response.json
+            )
+            self.assertEqual([
+                (f"INFO:rights:[Person:post] {rights.INCOMING_REQUEST_MSG}: "
+                "{'code': '12345678901', "
+                "'first_name': 'First-name', 'last_name': 'Last-name'}"),
+                'INFO:rights:[Person:post] Client DN: None',
+                ('ERROR:rights:[Person:post] FORBIDDEN: Client certificate is not allowed: '
+                'None'),
+                ("INFO:rights:[Person:post] Response: {'http_status': 403, 'code': "
+                "'FORBIDDEN', 'msg': 'Client certificate is not allowed: None'}")], cm.output)
+            mock_check_client.assert_called_with({
+                'db_host': 'localhost', 'db_port': '5432',
+                'db_db': 'postgres', 'db_user': 'postgres',
+                'db_pass': 'password', 'db_connect_timeout': 10, 'allow_all': False,
+                'allowed': ['OU=xtss,O=RIA,C=EE']}, None)
 
     @patch('rights.process_set_person', side_effect=psycopg2.Error('DB_ERROR_MSG'))
     @patch('rights.check_client', return_value=True)
     def test_person_db_error_handled(self, mock_check_client, mock_process_set_person):
-        with self.app.app_context():
-            with self.assertLogs(rights.LOGGER, level='INFO') as cm:
-                json_data = {
-                    'code': '12345678901',
-                    'first_name': 'First-name',
-                    'last_name': 'Last-name'}
-                response = self.client.post('/person', json=json_data)
-                self.assertEqual(500, response.status_code)
-                self.assertEqual(
-                    jsonify({
-                        'code': 'DB_ERROR',
-                        'msg': rights.DB_ERROR_MSG}).json,
-                    response.json
-                )
-                self.assertEqual([
-                    f"INFO:rights:[Person:post] {rights.INCOMING_REQUEST_MSG}: "
-                    "{'code': '12345678901', "
-                    "'first_name': 'First-name', 'last_name': 'Last-name'}",
-                    'INFO:rights:[Person:post] Client DN: None',
-                    f'ERROR:rights:[Person:post] DB_ERROR: {rights.DB_ERROR_MSG}: '
-                    'DB_ERROR_MSG',
-                    "INFO:rights:[Person:post] Response: {'http_status': 500, 'code': 'DB_ERROR', "
-                    f"'msg': '{rights.DB_ERROR_MSG}'"
-                    "}"], cm.output)
-                mock_check_client.assert_called_with({
-                    'db_host': 'localhost', 'db_port': '5432',
-                    'db_db': 'postgres', 'db_user': 'postgres',
-                    'db_pass': 'password', 'db_connect_timeout': 10, 'allow_all': False,
-                    'allowed': ['OU=xtss,O=RIA,C=EE']}, None)
-                mock_process_set_person.assert_called_with(
-                    {
-                        'db_host': 'localhost', 'db_port': '5432', 'db_db': 'postgres',
-                        'db_user': 'postgres', 'db_pass': 'password', 'db_connect_timeout': 10,
-                        'allow_all': False, 'allowed': ['OU=xtss,O=RIA,C=EE']
-                    }, {
-                        'code': '12345678901', 'first_name': 'First-name', 'last_name': 'Last-name'
-                    }, '[Person:post] ')
+        with self.app.app_context(), self.assertLogs(rights.LOGGER, level='INFO') as cm:
+            json_data = {
+                'code': '12345678901',
+                'first_name': 'First-name',
+                'last_name': 'Last-name'}
+            response = self.client.post('/person', json=json_data)
+            self.assertEqual(500, response.status_code)
+            self.assertEqual(
+                jsonify({
+                    'code': 'DB_ERROR',
+                    'msg': rights.DB_ERROR_MSG}).json,
+                response.json
+            )
+            self.assertEqual([
+                (f"INFO:rights:[Person:post] {rights.INCOMING_REQUEST_MSG}: "
+                "{'code': '12345678901', "
+                "'first_name': 'First-name', 'last_name': 'Last-name'}"),
+                'INFO:rights:[Person:post] Client DN: None',
+                (f'ERROR:rights:[Person:post] DB_ERROR: {rights.DB_ERROR_MSG}: '
+                'DB_ERROR_MSG'),
+                ("INFO:rights:[Person:post] Response: {'http_status': 500, 'code': 'DB_ERROR', "
+                f"'msg': '{rights.DB_ERROR_MSG}'"
+                "}")], cm.output)
+            mock_check_client.assert_called_with({
+                'db_host': 'localhost', 'db_port': '5432',
+                'db_db': 'postgres', 'db_user': 'postgres',
+                'db_pass': 'password', 'db_connect_timeout': 10, 'allow_all': False,
+                'allowed': ['OU=xtss,O=RIA,C=EE']}, None)
+            mock_process_set_person.assert_called_with(
+                {
+                    'db_host': 'localhost', 'db_port': '5432', 'db_db': 'postgres',
+                    'db_user': 'postgres', 'db_pass': 'password', 'db_connect_timeout': 10,
+                    'allow_all': False, 'allowed': ['OU=xtss,O=RIA,C=EE']
+                }, {
+                    'code': '12345678901', 'first_name': 'First-name', 'last_name': 'Last-name'
+                }, '[Person:post] ')
 
     @patch('rights.process_set_person', return_value={
         'http_status': 200, 'code': 'OK', 'msg': 'SET_PERSON_OK'})
     @patch('rights.check_client', return_value=True)
     def test_person_ok(self, mock_check_client, mock_process_set_person):
-        with self.app.app_context():
-            with self.assertLogs(rights.LOGGER, level='INFO') as cm:
-                json_data = {
-                    'code': '12345678901',
-                    'first_name': 'First-name',
-                    'last_name': 'Last-name'}
-                response = self.client.post('/person', json=json_data)
-                self.assertEqual(200, response.status_code)
-                self.assertEqual(
-                    jsonify({'code': 'OK', 'msg': 'SET_PERSON_OK'}).json,
-                    response.json
-                )
-                self.assertEqual([
-                    f"INFO:rights:[Person:post] {rights.INCOMING_REQUEST_MSG}: "
-                    "{'code': '12345678901', "
-                    "'first_name': 'First-name', 'last_name': 'Last-name'}",
-                    'INFO:rights:[Person:post] Client DN: None',
-                    "INFO:rights:[Person:post] Response: {'http_status': 200, 'code': 'OK', "
-                    "'msg': 'SET_PERSON_OK'}"], cm.output)
-                mock_check_client.assert_called_with({
-                    'db_host': 'localhost', 'db_port': '5432',
-                    'db_db': 'postgres', 'db_user': 'postgres',
-                    'db_pass': 'password', 'db_connect_timeout': 10, 'allow_all': False,
-                    'allowed': ['OU=xtss,O=RIA,C=EE']}, None)
-                mock_process_set_person.assert_called_with(
-                    {
-                        'db_host': 'localhost', 'db_port': '5432', 'db_db': 'postgres',
-                        'db_user': 'postgres', 'db_pass': 'password', 'db_connect_timeout': 10,
-                        'allow_all': False, 'allowed': ['OU=xtss,O=RIA,C=EE']
-                    }, {
-                        'code': '12345678901', 'first_name': 'First-name', 'last_name': 'Last-name'
-                    }, '[Person:post] ')
+        with self.app.app_context(), self.assertLogs(rights.LOGGER, level='INFO') as cm:
+            json_data = {
+                'code': '12345678901',
+                'first_name': 'First-name',
+                'last_name': 'Last-name'}
+            response = self.client.post('/person', json=json_data)
+            self.assertEqual(200, response.status_code)
+            self.assertEqual(
+                jsonify({'code': 'OK', 'msg': 'SET_PERSON_OK'}).json,
+                response.json
+            )
+            self.assertEqual([
+                (f"INFO:rights:[Person:post] {rights.INCOMING_REQUEST_MSG}: "
+                "{'code': '12345678901', "
+                "'first_name': 'First-name', 'last_name': 'Last-name'}"),
+                'INFO:rights:[Person:post] Client DN: None',
+                ("INFO:rights:[Person:post] Response: {'http_status': 200, 'code': 'OK', "
+                "'msg': 'SET_PERSON_OK'}")], cm.output)
+            mock_check_client.assert_called_with({
+                'db_host': 'localhost', 'db_port': '5432',
+                'db_db': 'postgres', 'db_user': 'postgres',
+                'db_pass': 'password', 'db_connect_timeout': 10, 'allow_all': False,
+                'allowed': ['OU=xtss,O=RIA,C=EE']}, None)
+            mock_process_set_person.assert_called_with(
+                {
+                    'db_host': 'localhost', 'db_port': '5432', 'db_db': 'postgres',
+                    'db_user': 'postgres', 'db_pass': 'password', 'db_connect_timeout': 10,
+                    'allow_all': False, 'allowed': ['OU=xtss,O=RIA,C=EE']
+                }, {
+                    'code': '12345678901', 'first_name': 'First-name', 'last_name': 'Last-name'
+                }, '[Person:post] ')
 
     @patch('rights.check_client', return_value=False)
     def test_organization_incorrect_client(self, mock_check_client):
-        with self.app.app_context():
-            with self.assertLogs(rights.LOGGER, level='INFO') as cm:
-                json_data = {
-                    'code': '00000000',
-                    'name': 'Org name'}
-                response = self.client.post('/organization', json=json_data)
-                self.assertEqual(403, response.status_code)
-                self.assertEqual(
-                    jsonify({
-                        'code': 'FORBIDDEN',
-                        'msg': 'Client certificate is not allowed: None'}).json,
-                    response.json
-                )
-                self.assertEqual([
-                    f"INFO:rights:[Organization:post] {rights.INCOMING_REQUEST_MSG}: "
-                    "{'code': '00000000', "
-                    "'name': 'Org name'}",
-                    'INFO:rights:[Organization:post] Client DN: None',
-                    'ERROR:rights:[Organization:post] FORBIDDEN: Client certificate is not '
-                    'allowed: None',
-                    "INFO:rights:[Organization:post] Response: {'http_status': 403, 'code': "
-                    "'FORBIDDEN', 'msg': 'Client certificate is not allowed: None'}"], cm.output)
-                mock_check_client.assert_called_with({
-                    'db_host': 'localhost', 'db_port': '5432',
-                    'db_db': 'postgres', 'db_user': 'postgres',
-                    'db_pass': 'password', 'db_connect_timeout': 10, 'allow_all': False,
-                    'allowed': ['OU=xtss,O=RIA,C=EE']}, None)
+        with self.app.app_context(), self.assertLogs(rights.LOGGER, level='INFO') as cm:
+            json_data = {
+                'code': '00000000',
+                'name': 'Org name'}
+            response = self.client.post('/organization', json=json_data)
+            self.assertEqual(403, response.status_code)
+            self.assertEqual(
+                jsonify({
+                    'code': 'FORBIDDEN',
+                    'msg': 'Client certificate is not allowed: None'}).json,
+                response.json
+            )
+            self.assertEqual([
+                (f"INFO:rights:[Organization:post] {rights.INCOMING_REQUEST_MSG}: "
+                "{'code': '00000000', "
+                "'name': 'Org name'}"),
+                'INFO:rights:[Organization:post] Client DN: None',
+                ('ERROR:rights:[Organization:post] FORBIDDEN: Client certificate is not '
+                'allowed: None'),
+                ("INFO:rights:[Organization:post] Response: {'http_status': 403, 'code': "
+                "'FORBIDDEN', 'msg': 'Client certificate is not allowed: None'}")], cm.output)
+            mock_check_client.assert_called_with({
+                'db_host': 'localhost', 'db_port': '5432',
+                'db_db': 'postgres', 'db_user': 'postgres',
+                'db_pass': 'password', 'db_connect_timeout': 10, 'allow_all': False,
+                'allowed': ['OU=xtss,O=RIA,C=EE']}, None)
 
     @patch('rights.process_set_organization', side_effect=psycopg2.Error('DB_ERROR_MSG'))
     @patch('rights.check_client', return_value=True)
     def test_organization_db_error_handled(self, mock_check_client, mock_process_set_organization):
-        with self.app.app_context():
-            with self.assertLogs(rights.LOGGER, level='INFO') as cm:
-                json_data = {
-                    'code': '00000000',
-                    'name': 'Org name'}
-                response = self.client.post('/organization', json=json_data)
-                self.assertEqual(500, response.status_code)
-                self.assertEqual(
-                    jsonify({
-                        'code': 'DB_ERROR',
-                        'msg': rights.DB_ERROR_MSG}).json,
-                    response.json
-                )
-                self.assertEqual([
-                    f"INFO:rights:[Organization:post] {rights.INCOMING_REQUEST_MSG}: "
-                    "{'code': '00000000', "
-                    "'name': 'Org name'}",
-                    'INFO:rights:[Organization:post] Client DN: None',
-                    f'ERROR:rights:[Organization:post] DB_ERROR: {rights.DB_ERROR_MSG}: '
-                    'DB_ERROR_MSG',
-                    "INFO:rights:[Organization:post] Response: {'http_status': 500, 'code': "
-                    f"'DB_ERROR', 'msg': '{rights.DB_ERROR_MSG}'"
-                    "}"], cm.output)
-                mock_check_client.assert_called_with({
-                    'db_host': 'localhost', 'db_port': '5432',
-                    'db_db': 'postgres', 'db_user': 'postgres',
-                    'db_pass': 'password', 'db_connect_timeout': 10, 'allow_all': False,
-                    'allowed': ['OU=xtss,O=RIA,C=EE']}, None)
-                mock_process_set_organization.assert_called_with({
-                    'db_host': 'localhost', 'db_port': '5432', 'db_db': 'postgres',
-                    'db_user': 'postgres', 'db_pass': 'password', 'db_connect_timeout': 10,
-                    'allow_all': False, 'allowed': ['OU=xtss,O=RIA,C=EE']},
-                    {'code': '00000000', 'name': 'Org name'}, '[Organization:post] ')
+        with self.app.app_context(), self.assertLogs(rights.LOGGER, level='INFO') as cm:
+            json_data = {
+                'code': '00000000',
+                'name': 'Org name'}
+            response = self.client.post('/organization', json=json_data)
+            self.assertEqual(500, response.status_code)
+            self.assertEqual(
+                jsonify({
+                    'code': 'DB_ERROR',
+                    'msg': rights.DB_ERROR_MSG}).json,
+                response.json
+            )
+            self.assertEqual([
+                (f"INFO:rights:[Organization:post] {rights.INCOMING_REQUEST_MSG}: "
+                "{'code': '00000000', "
+                "'name': 'Org name'}"),
+                'INFO:rights:[Organization:post] Client DN: None',
+                (f'ERROR:rights:[Organization:post] DB_ERROR: {rights.DB_ERROR_MSG}: '
+                'DB_ERROR_MSG'),
+                ("INFO:rights:[Organization:post] Response: {'http_status': 500, 'code': "
+                f"'DB_ERROR', 'msg': '{rights.DB_ERROR_MSG}'"
+                "}")], cm.output)
+            mock_check_client.assert_called_with({
+                'db_host': 'localhost', 'db_port': '5432',
+                'db_db': 'postgres', 'db_user': 'postgres',
+                'db_pass': 'password', 'db_connect_timeout': 10, 'allow_all': False,
+                'allowed': ['OU=xtss,O=RIA,C=EE']}, None)
+            mock_process_set_organization.assert_called_with({
+                'db_host': 'localhost', 'db_port': '5432', 'db_db': 'postgres',
+                'db_user': 'postgres', 'db_pass': 'password', 'db_connect_timeout': 10,
+                'allow_all': False, 'allowed': ['OU=xtss,O=RIA,C=EE']},
+                {'code': '00000000', 'name': 'Org name'}, '[Organization:post] ')
 
     @patch('rights.process_set_organization', return_value={
         'http_status': 200, 'code': 'OK', 'msg': 'SET_ORGANIZATION_OK'})
     @patch('rights.check_client', return_value=True)
     def test_organization_ok(self, mock_check_client, mock_process_set_organization):
-        with self.app.app_context():
-            with self.assertLogs(rights.LOGGER, level='INFO') as cm:
-                json_data = {
-                    'code': '00000000',
-                    'name': 'Org name'}
-                response = self.client.post('/organization', json=json_data)
-                self.assertEqual(200, response.status_code)
-                self.assertEqual(
-                    jsonify({'code': 'OK', 'msg': 'SET_ORGANIZATION_OK'}).json,
-                    response.json
-                )
-                self.assertEqual([
-                    f"INFO:rights:[Organization:post] {rights.INCOMING_REQUEST_MSG}: "
-                    "{'code': '00000000', "
-                    "'name': 'Org name'}",
-                    'INFO:rights:[Organization:post] Client DN: None',
-                    "INFO:rights:[Organization:post] Response: {'http_status': 200, 'code': 'OK', "
-                    "'msg': 'SET_ORGANIZATION_OK'}"], cm.output)
-                mock_check_client.assert_called_with({
-                    'db_host': 'localhost', 'db_port': '5432',
-                    'db_db': 'postgres', 'db_user': 'postgres',
-                    'db_pass': 'password', 'db_connect_timeout': 10, 'allow_all': False,
-                    'allowed': ['OU=xtss,O=RIA,C=EE']}, None)
-                mock_process_set_organization.assert_called_with({
-                    'db_host': 'localhost', 'db_port': '5432', 'db_db': 'postgres',
-                    'db_user': 'postgres', 'db_pass': 'password', 'db_connect_timeout': 10,
-                    'allow_all': False, 'allowed': ['OU=xtss,O=RIA,C=EE']},
-                    {'code': '00000000', 'name': 'Org name'}, '[Organization:post] ')
+        with self.app.app_context(), self.assertLogs(rights.LOGGER, level='INFO') as cm:
+            json_data = {
+                'code': '00000000',
+                'name': 'Org name'}
+            response = self.client.post('/organization', json=json_data)
+            self.assertEqual(200, response.status_code)
+            self.assertEqual(
+                jsonify({'code': 'OK', 'msg': 'SET_ORGANIZATION_OK'}).json,
+                response.json
+            )
+            self.assertEqual([
+                (f"INFO:rights:[Organization:post] {rights.INCOMING_REQUEST_MSG}: "
+                "{'code': '00000000', "
+                "'name': 'Org name'}"),
+                'INFO:rights:[Organization:post] Client DN: None',
+                ("INFO:rights:[Organization:post] Response: {'http_status': 200, 'code': 'OK', "
+                "'msg': 'SET_ORGANIZATION_OK'}")], cm.output)
+            mock_check_client.assert_called_with({
+                'db_host': 'localhost', 'db_port': '5432',
+                'db_db': 'postgres', 'db_user': 'postgres',
+                'db_pass': 'password', 'db_connect_timeout': 10, 'allow_all': False,
+                'allowed': ['OU=xtss,O=RIA,C=EE']}, None)
+            mock_process_set_organization.assert_called_with({
+                'db_host': 'localhost', 'db_port': '5432', 'db_db': 'postgres',
+                'db_user': 'postgres', 'db_pass': 'password', 'db_connect_timeout': 10,
+                'allow_all': False, 'allowed': ['OU=xtss,O=RIA,C=EE']},
+                {'code': '00000000', 'name': 'Org name'}, '[Organization:post] ')
 
     @patch('rights.test_db', side_effect=psycopg2.Error('DB_ERROR_MSG'))
     def test_status_db_error_handled(self, mock_test_db):
-        with self.app.app_context():
-            with self.assertLogs(rights.LOGGER, level='INFO') as cm:
-                response = self.client.get('/status')
-                self.assertEqual(500, response.status_code)
-                self.assertEqual(
-                    jsonify({
-                        'code': 'DB_ERROR',
-                        'msg': rights.DB_ERROR_MSG}).json,
-                    response.json
-                )
-                self.assertEqual([
-                    'INFO:rights:[Status:get] Incoming status request',
-                    f'ERROR:rights:[Status:get] DB_ERROR: {rights.DB_ERROR_MSG}: '
-                    'DB_ERROR_MSG',
-                    "INFO:rights:[Status:get] Response: {'http_status': 500, 'code': 'DB_ERROR', "
-                    f"'msg': '{rights.DB_ERROR_MSG}'"
-                    "}"], cm.output)
-                mock_test_db.assert_called_with({
-                    'db_host': 'localhost', 'db_port': '5432', 'db_db': 'postgres',
-                    'db_user': 'postgres', 'db_pass': 'password', 'db_connect_timeout': 10,
-                    'allow_all': False, 'allowed': ['OU=xtss,O=RIA,C=EE']}, '[Status:get] ')
+        with self.app.app_context(), self.assertLogs(rights.LOGGER, level='INFO') as cm:
+            response = self.client.get('/status')
+            self.assertEqual(500, response.status_code)
+            self.assertEqual(
+                jsonify({
+                    'code': 'DB_ERROR',
+                    'msg': rights.DB_ERROR_MSG}).json,
+                response.json
+            )
+            self.assertEqual([
+                'INFO:rights:[Status:get] Incoming status request',
+                (f'ERROR:rights:[Status:get] DB_ERROR: {rights.DB_ERROR_MSG}: '
+                'DB_ERROR_MSG'),
+                ("INFO:rights:[Status:get] Response: {'http_status': 500, 'code': 'DB_ERROR', "
+                f"'msg': '{rights.DB_ERROR_MSG}'"
+                "}")], cm.output)
+            mock_test_db.assert_called_with({
+                'db_host': 'localhost', 'db_port': '5432', 'db_db': 'postgres',
+                'db_user': 'postgres', 'db_pass': 'password', 'db_connect_timeout': 10,
+                'allow_all': False, 'allowed': ['OU=xtss,O=RIA,C=EE']}, '[Status:get] ')
 
     @patch('rights.test_db', return_value={
         'http_status': 200, 'code': 'OK', 'msg': 'All Correct'})
     def test_status_ok(self, mock_test_db):
-        with self.app.app_context():
-            with self.assertLogs(rights.LOGGER, level='INFO') as cm:
-                response = self.client.get('/status')
-                self.assertEqual(200, response.status_code)
-                self.assertEqual(
-                    jsonify({'code': 'OK', 'msg': 'All Correct'}).json,
-                    response.json
-                )
-                self.assertEqual([
-                    'INFO:rights:[Status:get] Incoming status request',
-                    "INFO:rights:[Status:get] Response: {'http_status': 200, 'code': 'OK', 'msg': "
-                    "'All Correct'}"], cm.output)
-                mock_test_db.assert_called_with({
-                    'db_host': 'localhost', 'db_port': '5432', 'db_db': 'postgres',
-                    'db_user': 'postgres', 'db_pass': 'password', 'db_connect_timeout': 10,
-                    'allow_all': False, 'allowed': ['OU=xtss,O=RIA,C=EE']}, '[Status:get] ')
+        with self.app.app_context(), self.assertLogs(rights.LOGGER, level='INFO') as cm:
+            response = self.client.get('/status')
+            self.assertEqual(200, response.status_code)
+            self.assertEqual(
+                jsonify({'code': 'OK', 'msg': 'All Correct'}).json,
+                response.json
+            )
+            self.assertEqual([
+                'INFO:rights:[Status:get] Incoming status request',
+                ("INFO:rights:[Status:get] Response: {'http_status': 200, 'code': 'OK', 'msg': "
+                "'All Correct'}")], cm.output)
+            mock_test_db.assert_called_with({
+                'db_host': 'localhost', 'db_port': '5432', 'db_db': 'postgres',
+                'db_user': 'postgres', 'db_pass': 'password', 'db_connect_timeout': 10,
+                'allow_all': False, 'allowed': ['OU=xtss,O=RIA,C=EE']}, '[Status:get] ')
 
     @patch('rights.configure_app', return_value={'log_file': 'LOG_FILE'})
     @patch('rights.Api')

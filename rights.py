@@ -13,16 +13,17 @@ This module allows:
 
 __version__ = '1.2.1'
 
-from datetime import datetime
 import logging
 import logging.config
 import os
 import re
 import uuid
-from flask import Flask, request, jsonify
-from flask_restful import Api, Resource
+from datetime import datetime
+
 import psycopg2
 import yaml
+from flask import Flask, jsonify, request
+from flask_restful import Api, Resource
 
 LOGGER = logging.getLogger(__name__)
 DEFAULT_CONFIG_FILE = 'config.yaml'
@@ -66,7 +67,7 @@ def load_config(config_file):
         with open(config_file, 'r', encoding='utf-8') as conf:
             LOGGER.info('Loading configuration from file "%s"', config_file)
             return yaml.safe_load(conf)
-    except IOError as err:
+    except OSError as err:
         LOGGER.error('Cannot open configuration file "%s": %s', config_file, str(err))
         return {}
     except yaml.YAMLError as err:
@@ -647,10 +648,9 @@ def process_search_rights(conf, json_data, log_header):
 
     kwargs = validate_search_rights_request(json_data)
 
-    with get_db_connection(conf) as conn:
-        with conn.cursor() as cur:
-            result = search_rights(
-                cur, **kwargs)
+    with get_db_connection(conf) as conn, conn.cursor() as cur:
+        result = search_rights(
+            cur, **kwargs)
 
     LOGGER.info(
         '%sFound %s rights, returning %s rights with offset %s',
@@ -747,10 +747,7 @@ def check_client(config, client_dn):
     if client_dn is None or not isinstance(allowed, list):
         return False
 
-    if client_dn in allowed:
-        return True
-
-    return False
+    return client_dn in allowed
 
 
 def incorrect_client(client_dn, log_header):
@@ -768,12 +765,11 @@ def test_db(conf, log_header):
     if conf_error:
         return conf_error
 
-    with get_db_connection(conf) as conn:
-        with conn.cursor() as cur:
-            cur.execute("""select count(1) from rights."right";""")
-            return {
-                'http_status': 200, 'code': 'OK',
-                'msg': 'API is ready'}
+    with get_db_connection(conf) as conn, conn.cursor() as cur:
+        cur.execute("""select count(1) from rights."right";""")
+        return {
+            'http_status': 200, 'code': 'OK',
+            'msg': 'API is ready'}
 
 
 def get_log_header(method):
