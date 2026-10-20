@@ -4,8 +4,10 @@
 You will need a `docker` with docker compose plugin installed in order to use run service locally
 
 ## Running
-Start service by navigating to `local` directory and running:
+Start service by navigating to `local` directory, downloading the PostgreSQL JDBC driver
+(required by Liquibase, which no longer bundles it) and running:
 ```
+( PG_JDBC_VERSION=$(curl -s https://repo1.maven.org/maven2/org/postgresql/postgresql/maven-metadata.xml | grep -oP '(?<=<release>).*(?=</release>)') && curl -Lo postgresql.jar "https://repo1.maven.org/maven2/org/postgresql/postgresql/${PG_JDBC_VERSION}/postgresql-${PG_JDBC_VERSION}.jar" )
 docker compose up --build
 ```
 

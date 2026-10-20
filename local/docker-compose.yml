@@ -20,6 +20,7 @@ services:
     image: liquibase/liquibase
     volumes:
       - ../liquibase:/liquibase/changelog
+      - ./postgresql.jar:/liquibase/lib/postgresql.jar
     command: >
       --defaultsFile=/liquibase/changelog/liquibase.local.properties update
     depends_on:
